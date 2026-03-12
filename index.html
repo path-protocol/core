@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Path</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ============================================================
+         SCREEN 1 — LANDING
+         Shown to all users on arrival.
+    ============================================================ -->
+    <section id="screen-landing" class="screen active">
+        <div class="screen-inner screen-inner--centered">
+            <div class="landing-wordmark">PATH</div>
+            <p class="landing-statement">
+                Path reveals where you actually are in your career — and what it takes to reach the level above you.
+            </p>
+            <button class="btn btn--primary btn--large" id="btn-begin">Begin</button>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN 2 — PATH SELECTION
+         Routes user to CV path or Re-imagine path.
+    ============================================================ -->
+    <section id="screen-path-select" class="screen">
+        <div class="screen-inner screen-inner--centered">
+            <p class="screen-prompt">Do you have professional work experience, or are you just starting out?</p>
+            <div class="choice-stack">
+                <button class="btn btn--choice" id="btn-cv-path">
+                    <span class="choice-label">I have work experience</span>
+                    <span class="choice-sub">You'll paste your CV and we'll identify your specific practice.</span>
+                </button>
+                <button class="btn btn--choice" id="btn-reimagine-path">
+                    <span class="choice-label">I'm just starting out</span>
+                    <span class="choice-sub">We'll surface what you already know and where it points.</span>
+                </button>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN 3 — API KEY SETUP
+         Shared. User pastes their Gemini API key.
+    ============================================================ -->
+    <section id="screen-api-key" class="screen">
+        <div class="screen-inner screen-inner--narrow">
+            <h2 class="screen-heading">Connect your AI key</h2>
+            <p class="screen-body">
+                Path uses the Gemini API to analyse your experience and build your character sheet.
+                Your key is stored only in this browser session — never on a server.
+            </p>
+            <p class="screen-body">
+                Get a free key from
+                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="link">Google AI Studio</a>.
+            </p>
+            <div class="field-group">
+                <label class="field-label" for="input-api-key">Gemini API key</label>
+                <input
+                    type="password"
+                    id="input-api-key"
+                    class="field-input"
+                    placeholder="AIza..."
+                    autocomplete="off"
+                    spellcheck="false"
+                />
+                <p class="field-hint" id="api-key-hint"></p>
+            </div>
+            <button class="btn btn--primary" id="btn-validate-key">Validate key</button>
+            <div class="inline-loader hidden" id="api-key-loader">
+                <span class="loader-dot"></span><span class="loader-dot"></span><span class="loader-dot"></span>
+                <span class="loader-text">Checking key...</span>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN 4a — CV PASTE (CV path only)
+    ============================================================ -->
+    <section id="screen-cv-paste" class="screen">
+        <div class="screen-inner screen-inner--narrow">
+            <h2 class="screen-heading">Your CV</h2>
+            <p class="screen-body">
+                Paste your full CV — not a shortened version. We use this to understand what you actually do, not just your job title.
+            </p>
+            <div class="field-group">
+                <label class="field-label" for="input-cv">CV text</label>
+                <textarea
+                    id="input-cv"
+                    class="field-input field-input--tall"
+                    placeholder="Paste your full CV here..."
+                    spellcheck="false"
+                ></textarea>
+            </div>
+            <button class="btn btn--primary" id="btn-analyse-cv">Analyse</button>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN 4b — RE-IMAGINE QUESTIONS (Re-imagine path only)
+         Questions shown one at a time. Each question is a sub-screen.
+    ============================================================ -->
+    <section id="screen-reimagine" class="screen">
+        <div class="screen-inner screen-inner--narrow">
+
+            <div class="reimagine-progress">
+                <span class="reimagine-progress__current" id="reimagine-q-num">1</span>
+                <span class="reimagine-progress__sep">/</span>
+                <span class="reimagine-progress__total">5</span>
+            </div>
+
+            <!-- Question 1 -->
+            <div class="reimagine-question active" id="reimagine-q1">
+                <p class="screen-prompt">What do you spend time on that you didn't have to?</p>
+                <div class="field-group">
+                    <textarea
+                        id="input-reimagine-1"
+                        class="field-input field-input--medium"
+                        placeholder="Take your time with this one..."
+                        spellcheck="true"
+                    ></textarea>
+                </div>
+            </div>
+
+            <!-- Question 2 -->
+            <div class="reimagine-question" id="reimagine-q2">
+                <p class="screen-prompt">What have you organised, built, managed, or figured out — for yourself, for others, for fun?</p>
+                <div class="field-group">
+                    <textarea
+                        id="input-reimagine-2"
+                        class="field-input field-input--medium"
+                        placeholder="Anything counts here..."
+                        spellcheck="true"
+                    ></textarea>
+                </div>
+            </div>
+
+            <!-- Question 3 -->
+            <div class="reimagine-question" id="reimagine-q3">
+                <p class="screen-prompt">What do people come to you for, even informally?</p>
+                <div class="field-group">
+                    <textarea
+                        id="input-reimagine-3"
+                        class="field-input field-input--medium"
+                        placeholder="Friends, family, peers..."
+                        spellcheck="true"
+                    ></textarea>
+                </div>
+            </div>
+
+            <!-- Question 4 -->
+            <div class="reimagine-question" id="reimagine-q4">
+                <p class="screen-prompt">What have you taught yourself that most people your age haven't?</p>
+                <div class="field-group">
+                    <textarea
+                        id="input-reimagine-4"
+                        class="field-input field-input--medium"
+                        placeholder="Skills, knowledge, ways of thinking..."
+                        spellcheck="true"
+                    ></textarea>
+                </div>
+            </div>
+
+            <!-- Question 5 -->
+            <div class="reimagine-question" id="reimagine-q5">
+                <p class="screen-prompt">What would you do with your time if nothing was graded and no one was watching?</p>
+                <div class="field-group">
+                    <textarea
+                        id="input-reimagine-5"
+                        class="field-input field-input--medium"
+                        placeholder="Be honest with yourself here..."
+                        spellcheck="true"
+                    ></textarea>
+                </div>
+            </div>
+
+            <div class="reimagine-nav">
+                <button class="btn btn--ghost" id="btn-reimagine-back">Back</button>
+                <button class="btn btn--primary" id="btn-reimagine-next">Next</button>
+            </div>
+
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN 5 — LOADING (Gemini Call 1)
+         Shared. Shown while practice cards are being generated.
+    ============================================================ -->
+    <section id="screen-loading-1" class="screen">
+        <div class="screen-inner screen-inner--centered">
+            <div class="loading-block">
+                <div class="loading-bar">
+                    <div class="loading-bar__fill"></div>
+                </div>
+                <p class="loading-label" id="loading-1-label">Reading your career history...</p>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN 6 — PRACTICE CARDS ROUND 1
+         Shared. 3–5 cards. Multiple selection allowed.
+    ============================================================ -->
+    <section id="screen-cards-1" class="screen">
+        <div class="screen-inner screen-inner--wide">
+            <h2 class="screen-heading">Which of these feels closest to your actual work?</h2>
+            <p class="screen-body">Select all that apply. We'll narrow it down from there.</p>
+
+            <!-- Cards are injected here by JavaScript -->
+            <div class="card-grid" id="card-grid-1"></div>
+
+            <div class="screen-actions">
+                <button class="btn btn--primary" id="btn-cards-1-confirm">Confirm selection</button>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN 7 — PRACTICE CARDS ROUND 2
+         Shared. 2–3 reconciled options. Single selection.
+         Only shown if user selected multiple cards in Round 1.
+    ============================================================ -->
+    <section id="screen-cards-2" class="screen">
+        <div class="screen-inner screen-inner--wide">
+            <h2 class="screen-heading">Let's get more precise.</h2>
+            <p class="screen-body">Select the one that fits best.</p>
+
+            <!-- Cards are injected here by JavaScript -->
+            <div class="card-grid" id="card-grid-2"></div>
+
+            <div class="screen-actions">
+                <button class="btn btn--primary" id="btn-cards-2-confirm">This is it</button>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN 8 — LOADING (Gemini Call 2)
+         Shared. Shown while character sheet is being generated.
+    ============================================================ -->
+    <section id="screen-loading-2" class="screen">
+        <div class="screen-inner screen-inner--centered">
+            <div class="loading-block">
+                <div class="loading-bar">
+                    <div class="loading-bar__fill"></div>
+                </div>
+                <p class="loading-label">Building your character sheet...</p>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN 9 — CHARACTER SHEET
+         Shared. Displays confirmed practice, path name, and stats.
+    ============================================================ -->
+    <section id="screen-character-sheet" class="screen">
+        <div class="screen-inner screen-inner--narrow">
+
+            <!-- Origin Story block — Re-imagine path only -->
+            <div class="origin-story hidden" id="origin-story-block">
+                <div class="origin-story__label">
+                    <span class="term" data-term="origin-story">Origin Story</span>
+                </div>
+                <p class="origin-story__text" id="origin-story-text"></p>
+            </div>
+
+            <div class="sheet-header">
+                <div class="sheet-practice" id="sheet-practice-name"></div>
+                <div class="sheet-path-name" id="sheet-path-name"></div>
+            </div>
+
+            <!-- Stats are injected here by JavaScript -->
+            <div class="stat-list" id="stat-list"></div>
+
+            <p class="sheet-footer-note">These reflect where you are now. They change as you play.</p>
+
+            <div class="screen-actions">
+                <button class="btn btn--primary" id="btn-sheet-confirm">This is accurate</button>
+                <button class="btn btn--ghost" id="btn-sheet-flag">Some of this is off</button>
+            </div>
+
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN 10 — STAT FLAG FLOW
+         Shown when user selects "Some of this is off".
+         Allows flagging specific stats before proceeding.
+    ============================================================ -->
+    <section id="screen-flag" class="screen">
+        <div class="screen-inner screen-inner--narrow">
+            <h2 class="screen-heading">Which stats feel off?</h2>
+            <p class="screen-body">Select the ones that don't reflect your experience. Your feedback is logged — it helps us improve.</p>
+
+            <!-- Stat checkboxes injected here by JavaScript -->
+            <div class="flag-list" id="flag-list"></div>
+
+            <div class="screen-actions">
+                <button class="btn btn--primary" id="btn-flag-confirm">Continue</button>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN 11 — FIRST ENCOUNTER PREVIEW
+         Shared. Matched to the lowest-rated stat.
+    ============================================================ -->
+    <section id="screen-encounter" class="screen">
+        <div class="screen-inner screen-inner--narrow">
+
+            <div class="encounter-label">
+                <span class="term" data-term="encounter">Encounter</span>
+            </div>
+
+            <h2 class="encounter-name" id="encounter-name"></h2>
+            <p class="encounter-situation" id="encounter-situation"></p>
+
+            <div class="encounter-prompt">
+                <p class="encounter-prompt__label">What would you do here?</p>
+                <textarea
+                    id="input-encounter-response"
+                    class="field-input field-input--medium"
+                    placeholder="Write your response, or skip to see the expert call..."
+                    spellcheck="true"
+                ></textarea>
+            </div>
+
+            <!-- Expert response — hidden until revealed -->
+            <div class="expert-response hidden" id="expert-response-block">
+                <div class="expert-response__label">Expert response</div>
+                <p class="expert-response__text" id="expert-response-text"></p>
+            </div>
+
+            <div class="screen-actions">
+                <button class="btn btn--primary hidden" id="btn-reveal-expert">See the expert response</button>
+                <button class="btn btn--ghost" id="btn-encounter-skip">Skip to waitlist</button>
+                <button class="btn btn--primary hidden" id="btn-encounter-continue">Continue to waitlist</button>
+            </div>
+
+            <p class="encounter-footer">This is what your Path looks like. Your full journey is being built.</p>
+
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN 12 — WAITLIST
+         Final screen. Email signup.
+    ============================================================ -->
+    <section id="screen-waitlist" class="screen">
+        <div class="screen-inner screen-inner--centered">
+            <div class="waitlist-heading">Your Path is being built.</div>
+            <p class="screen-body screen-body--centered">
+                The full experience — Encounters, Known Opponents, Abilities, Rank progression — is in development.
+                Leave your email to be first in when it opens.
+            </p>
+            <div class="field-group field-group--inline">
+                <input
+                    type="email"
+                    id="input-waitlist-email"
+                    class="field-input"
+                    placeholder="your@email.com"
+                    autocomplete="email"
+                />
+                <button class="btn btn--primary" id="btn-waitlist-submit">Join waitlist</button>
+            </div>
+            <button class="btn btn--ghost btn--small" id="btn-waitlist-skip">No thanks</button>
+
+            <!-- Confirmation — shown after signup -->
+            <div class="waitlist-confirmation hidden" id="waitlist-confirmation">
+                <p class="waitlist-confirmation__text">You're on the list. We'll be in touch.</p>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         TOOLTIP OVERLAY
+         Shared. Appears when a .term element is tapped/clicked.
+    ============================================================ -->
+    <div class="tooltip-overlay hidden" id="tooltip-overlay" role="dialog" aria-modal="true">
+        <div class="tooltip-panel" id="tooltip-panel">
+            <button class="tooltip-close" id="tooltip-close" aria-label="Close">&times;</button>
+            <div class="tooltip-term" id="tooltip-term"></div>
+            <p class="tooltip-body" id="tooltip-body"></p>
+        </div>
+    </div>
+
+
+    <script src="script.js"></script>
+</body>
+</html>
