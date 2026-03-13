@@ -70,6 +70,7 @@ const state = {
     situationEngaged:  false,
     waitlistSignup:    false,
     waitlistEmail:     null,
+    userContext:       null,   // Free-text from card screens — fed into all downstream prompts
 
     // Internal flow tracking
     reimagineCurrentQ: 1
@@ -267,19 +268,30 @@ function compressCV(raw) {
    GEMINI PROMPTS
    ------------------------------------------------------------ */
 
-function buildPromptCV(cvText) {
-    return `You are analysing a CV to identify the user's specific career practice — the precise mode of work where a coherent set of expert judgement calls exists. Not their job title or industry — their practice.
+function buildPromptCV(cvText, userContext) {
+    const contextBlock = userContext
+        ? `\nAdditional context the user provided about their role:\n"${userContext}"\n`
+        : "";
+    return `You are analysing a CV to identify what job roles this person is best suited for — roles they could apply for today on LinkedIn, Indeed, or a company careers page.
 
-Extract:
-- Current and most recent roles
-- Actual tasks and responsibilities in the user's own words
-- Industry and sub-field signals
-- Language pointing toward practice-level specificity
-- Indicators of seniority and experience depth
+Your job is NOT to invent capability labels or practice abstractions. Your job is to identify real job titles that real companies post. A person reading your output should be able to type one of these role names into LinkedIn Jobs and find relevant postings immediately.
 
-Return exactly 3 to 5 practice options as a JSON array. Each object must have:
-- "name": precise practice name (e.g. "Early-stage B2B SaaS sales", not "Sales")
-- "explanation": two plain-language sentences describing what this practice involves day-to-day
+Rules for role names:
+- Use titles that appear verbatim in job postings (e.g. "Community Manager", "Product Manager", "Growth Marketing Manager", "Developer Relations Engineer", "Head of Community", "Customer Success Manager")
+- Where a specialism is clear from the CV, include it in the title (e.g. "Community Manager — Developer Tools" or "Product Manager — B2B SaaS"), but only if the CV clearly supports that specialism
+- Do NOT invent hyphenated practice labels that no company uses (e.g. NOT "Co-creation Judgment", NOT "Community-Driven Product Iteration")
+- Do NOT use the word "Specialist" as a filler — only use it if companies genuinely post that exact title for this kind of work
+- Prefer the title a senior hiring manager would recognise immediately over one that sounds analytical but means nothing on a job board${contextBlock}
+
+Extract from the CV:
+- Most recent and recurring roles
+- Industry and company type signals
+- Seniority level (individual contributor, lead, manager, head-of)
+- Any specialism that would appear in a real job title
+
+Return exactly 3 to 5 role options as a JSON array. Each object must have:
+- "name": a real job title as it would appear in a job posting
+- "explanation": two plain sentences — what someone in this role does day-to-day and what the step up to senior looks like
 
 CRITICAL: Return ONLY a valid JSON array. No preamble, no explanation, no markdown, no code fences. Start your response with [ and end with ].
 
@@ -287,17 +299,31 @@ CV:
 ${cvText}`;
 }
 
-function buildPromptReimagine(responses) {
+function buildPromptReimagine(responses, userContext) {
     const formatted = responses.map((r, i) => `Q${i + 1}: ${r || "(no response)"}`).join("\n\n");
-    return `You are analysing informal experience descriptions to identify capability signals pointing toward a specific career practice. The person may have no professional experience.
+    const contextBlock = userContext
+        ? `\nAdditional context the user provided:\n"${userContext}"\n`
+        : "";
+    return `You are reading informal descriptions of someone's experiences to identify what job roles they are naturally pointed toward — roles they could apply for today on LinkedIn, Indeed, or a company careers page.
 
-Find what their experiences already demonstrate. A person who organised a group trip demonstrates project coordination. A person who runs an online community demonstrates community management. A person who taught themselves to code demonstrates self-directed technical learning. Translate informal experience into practice-level signals.
+This person may have no formal work experience. Your job is to translate what they describe into real job titles that real companies post. Do not invent practice abstractions. Do not use capability labels. Use titles a hiring manager would recognise.
 
-Return exactly 3 to 5 practice options as a JSON array. Each object must have:
-- "name": precise practice name matching the capability signals found
-- "explanation": two plain-language sentences describing what this practice involves and why their experiences point toward it
+Rules for role names:
+- Use titles that appear verbatim or near-verbatim in job postings (e.g. "Community Manager", "Content Creator", "Operations Coordinator", "UX Researcher", "Junior Product Manager", "Social Media Manager")
+- Where their experiences clearly point toward a specialism, include it (e.g. "Community Manager — Gaming" if they describe running gaming communities)
+- Do NOT invent hyphenated labels that no company posts (e.g. NOT "Collaborative Vision Synthesis", NOT "Experience Orchestration")
+- The goal is: a person reads the card name and immediately knows whether this is a role they would apply for${contextBlock}
 
-Cards may point forward — toward where these signals naturally lead.
+From the responses, identify:
+- Recurring themes and activities
+- Natural strengths that translate to job requirements
+- Entry-level or junior titles where appropriate — do not overstate seniority
+
+Return exactly 3 to 5 role options as a JSON array. Each object must have:
+- "name": a real job title as it would appear in a job posting
+- "explanation": two plain sentences — what draws this person toward this role based on what they described, and what the day-to-day work actually involves
+
+Cards should point forward — toward roles the person could grow into, not just roles they already fully qualify for.
 
 CRITICAL: Return ONLY a valid JSON array. No preamble, no explanation, no markdown, no code fences. Start your response with [ and end with ].
 
@@ -305,58 +331,63 @@ Responses:
 ${formatted}`;
 }
 
-function buildPromptReconcile(selectedNames) {
-    return `A user is identifying their career practice and selected multiple options in round one, suggesting the options were too broad or overlapping.
+function buildPromptReconcile(selectedNames, userContext) {
+    const contextBlock = userContext
+        ? `\nAdditional context the user provided about their role:\n"${userContext}"\n`
+        : "";
+    return `A user is identifying which job role fits them best. In round one they selected multiple options, which means we need to get more precise.
 
-Selected practices: ${selectedNames.join(", ")}
+Selected roles: ${selectedNames.join(", ")}${contextBlock}
 
-Generate 2 to 3 more precise practice options that make finer distinctions within or between the selected practices.
+Generate 2 to 3 more precise job titles that make finer distinctions within or between the selected roles. These must still be real titles that appear in job postings — not invented labels.
+
+Examples of good precision moves:
+- "Product Manager" → "Product Manager — Platform" vs "Product Manager — Growth" vs "Product Manager — B2B SaaS"
+- "Community Manager" → "Community Manager — Developer Ecosystem" vs "Community Operations Manager" vs "Head of Community"
+- "Marketing Manager" → "Content Marketing Manager" vs "Growth Marketing Manager" vs "Brand Marketing Manager"
 
 Each object must have:
-- "name": more precise practice name
-- "explanation": two plain-language sentences
+- "name": a real, specific job title as it would appear in a job posting
+- "explanation": two plain sentences describing what makes this variant distinct from the others
 
 CRITICAL: Return ONLY a valid JSON array. No preamble, no explanation, no markdown, no code fences. Start your response with [ and end with ].`;
 }
 
-function buildPromptCharacterSheet(practiceName, path) {
-    return `You are generating a career character sheet for someone whose confirmed practice is:
-${practiceName}
-Onboarding path: ${path}
+function buildPromptCharacterSheet(practiceName, path, userContext) {
+    const contextBlock = userContext
+        ? `\nAdditional context the user provided about their role:\n"${userContext}"\n`
+        : "";
+    return `You are generating a character sheet for someone whose confirmed job role is: ${practiceName}
+Onboarding path: ${path}${contextBlock}
 
-Identify:
-1. What a surface-level practitioner does
-2. What an expert practitioner does differently
-3. The key dimensions of judgement that separate them
+Your job is to identify the specific judgement dimensions that separate a mid-level person in this role from a senior one. These must be grounded in what this role actually requires — use the language, vocabulary, and frameworks that practitioners in this field actually use.
 
-Generate 4 to 6 stats measuring the user's starting level across those dimensions.
-
-Each stat must have:
-- "name": plain-language, immediately self-explanatory to someone in this field. Not abstract. Not metaphorical. (e.g. "Case Theory Construction" not "Pattern Lock")
-- "definition": one sentence in the exact vocabulary of this practice
-- "level": one of — Early, Developing, Solid, Advanced
-- "isLowest": true for the one stat with the weakest starting level, false for all others
+Generate 4 to 6 stats. Each stat must have:
+- "name": a skill or capability dimension that practitioners in this role would immediately recognise. Use the actual vocabulary of this field. (e.g. for a Community Manager: "Member Retention Strategy", "Conflict De-escalation", "Community Health Diagnosis" — NOT abstract labels like "Pattern Synthesis" or "Co-creation Judgment")
+- "definition": one sentence defining what this means in this specific role, using the field's own terminology
+- "level": one of — Early, Developing, Solid, Advanced — reflecting an honest starting baseline, not flattery
+- "isLowest": true for the one stat that represents the biggest growth opportunity, false for all others
 
 Also generate:
-- "pathName": two words — [Field Noun] + [Judgement Word] (e.g. "Product Sense", "Legal Reasoning", "Clinical Judgement")
-- "originStory": for reimagine path only — one short paragraph describing what the user's experiences already demonstrate and where that naturally points. For cv path, return null.
-
-Levels should reflect honest starting baselines — not flattery.
+- "pathName": a short name for this person's career path — two to four words that could appear as a LinkedIn headline section. It should name the actual field and specialisation, not an abstract concept. (e.g. "Community Management", "B2B Product Management", "Growth Marketing", "Developer Relations" — NOT "Co-creation Judgment" or "Collaborative Synthesis")
+- "originStory": for reimagine path only — one short paragraph connecting what the person described to why this role fits them. For cv path, return null.
 
 CRITICAL: Return ONLY a valid JSON object with keys: "stats" (array), "pathName" (string), "originStory" (string or null). No preamble, no explanation, no markdown, no code fences. Start your response with { and end with }.`;
 }
 
 function buildPromptEncounter(practiceName, lowestStatName) {
-    return `You are generating a first encounter preview for someone in the practice: ${practiceName}
+    return `You are generating a first encounter preview for someone working toward the role: ${practiceName}
 
-Their weakest stat is: ${lowestStatName}
+Their biggest growth area is: ${lowestStatName}
 
-Generate a single named situation that tests this specific dimension.
+Generate a single realistic work situation that tests this specific dimension — something that would actually happen in this job.
 
 The situation must:
-- Have a name (2 to 4 words, like a scenario title)
-- Describe exactly what the situation looks like when it arrives (2 to 3 sentences, plain language)
-- Include an expert response — what the reasoning-layer practitioner does differently (2 to 3 sentences)
+- Have a name (2 to 4 words — a scenario title a practitioner would recognise)
+- Describe the situation in plain language as it would actually arrive: what the person sees, what they're asked to do, what the pressure or ambiguity is (2 to 3 sentences)
+- Include an expert response — specifically what the more experienced practitioner does differently in how they think about and approach it (2 to 3 sentences)
+
+The scenario must be grounded in real work, not hypothetical abstractions. It should feel like something from a real work week.
 
 CRITICAL: Return ONLY a valid JSON object with keys: "name" (string), "situation" (string), "expertResponse" (string). No preamble, no explanation, no markdown, no code fences. Start your response with { and end with }.`;
 }
@@ -655,7 +686,7 @@ async function runCVAnalysis() {
 
     try {
         const compressed = compressCV(state.rawInput.cvText);
-        const raw   = await callGemini(buildPromptCV(compressed), 8192);
+        const raw   = await callGemini(buildPromptCV(compressed, state.userContext), 8192);
         const cards = parseJsonResponse(raw);
         state.inference.cardsPresented = cards;
         renderCards("card-grid-1", cards, true);
@@ -677,7 +708,7 @@ async function runReimagineAnalysis() {
     showScreen("screen-loading-1");
 
     try {
-        const raw   = await callGemini(buildPromptReimagine(state.rawInput.reimagineResponses), 8192);
+        const raw   = await callGemini(buildPromptReimagine(state.rawInput.reimagineResponses, state.userContext), 8192);
         const cards = parseJsonResponse(raw);
         state.inference.cardsPresented = cards;
         renderCards("card-grid-1", cards, true);
@@ -697,8 +728,14 @@ async function runReimagineAnalysis() {
 document.getElementById("btn-cards-1-confirm").addEventListener("click", async () => {
     const selected = getSelectedCardNames("card-grid-1");
     if (selected.length === 0) {
-        alert("Please select at least one practice that resonates.");
+        alert("Please select at least one role that resonates.");
         return;
+    }
+
+    // Capture free-text context if provided
+    const contextInput = document.getElementById("input-card-context-1");
+    if (contextInput && contextInput.value.trim()) {
+        state.userContext = contextInput.value.trim();
     }
 
     state.inference.cardsSelectedRound1 = selected;
@@ -717,7 +754,7 @@ async function runRound2(selectedNames) {
     document.getElementById("loading-1-label").textContent = "NARROWING DOWN...";
     showScreen("screen-loading-1");
     try {
-        const raw   = await callGemini(buildPromptReconcile(selectedNames), 4096);
+        const raw   = await callGemini(buildPromptReconcile(selectedNames, state.userContext), 4096);
         const cards = parseJsonResponse(raw);
         renderCards("card-grid-2", cards, false);
         showScreen("screen-cards-2");
@@ -736,8 +773,14 @@ async function runRound2(selectedNames) {
 document.getElementById("btn-cards-2-confirm").addEventListener("click", async () => {
     const selected = getSelectedCardNames("card-grid-2");
     if (selected.length === 0) {
-        alert("Please select the practice that fits best.");
+        alert("Please select the role that fits best.");
         return;
+    }
+
+    // Capture free-text context if provided on round 2
+    const contextInput = document.getElementById("input-card-context-2");
+    if (contextInput && contextInput.value.trim()) {
+        state.userContext = contextInput.value.trim();
     }
     state.inference.cardsSelectedRound2 = selected;
     state.confirmedPractice             = selected[0];
@@ -754,7 +797,7 @@ async function generateCharacterSheet() {
     showScreen("screen-loading-2");
 
     try {
-        const raw  = await callGemini(buildPromptCharacterSheet(state.confirmedPractice, state.onboardingPath), 8192);
+        const raw  = await callGemini(buildPromptCharacterSheet(state.confirmedPractice, state.onboardingPath, state.userContext), 8192);
         const data = parseJsonResponse(raw);
 
         state.pathName                 = data.pathName;
