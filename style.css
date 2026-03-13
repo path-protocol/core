@@ -1,7 +1,8 @@
 /* ============================================================
    PATH — style.css
-   Editorial-utilitarian dark aesthetic.
-   DM Serif Display / DM Mono / DM Sans.
+   System / HUD aesthetic. Cold, precise, game-like.
+   Space Mono (primary) + Space Grotesk (body/UI).
+   No serifs. No warm tones. Built to read like a game system.
    4-space indentation. British English comments.
    ============================================================ */
 
@@ -11,36 +12,55 @@
    ------------------------------------------------------------ */
 
 :root {
-    --colour-bg:             #0d0d0d;
-    --colour-surface:        #141414;
-    --colour-surface-raise:  #1c1c1c;
-    --colour-border:         #2a2a2a;
-    --colour-border-raise:   #3a3a3a;
+    /* Background layers — dark but not black cosmetic, cold near-black */
+    --colour-bg:             #080c10;
+    --colour-surface:        #0d1318;
+    --colour-surface-raise:  #111920;
+    --colour-surface-high:   #162028;
 
-    --colour-text:           #e8e4dc;
-    --colour-text-muted:     #7a7570;
-    --colour-text-faint:     #3d3a36;
+    /* Borders — precise, thin */
+    --colour-border:         #1e2d3d;
+    --colour-border-raise:   #2a3f54;
+    --colour-border-bright:  #3a5870;
 
-    --colour-accent:         #c8a96e;
-    --colour-accent-dim:     #8a7048;
-    --colour-accent-glow:    rgba(200, 169, 110, 0.10);
+    /* Text */
+    --colour-text:           #d4e4f0;
+    --colour-text-muted:     #5a7a90;
+    --colour-text-faint:     #2a3f54;
 
-    --colour-danger:         #b84040;
-    --colour-success:        #4a7c59;
+    /* Accent — cold electric blue. System, not cosmetic. */
+    --colour-accent:         #4db8ff;
+    --colour-accent-dim:     #2a6b99;
+    --colour-accent-glow:    rgba(77, 184, 255, 0.08);
+    --colour-accent-line:    rgba(77, 184, 255, 0.25);
 
-    --level-early-bg:        rgba(120, 80, 40, 0.35);
-    --level-early-text:      #e8b87a;
-    --level-developing-bg:   rgba(120, 110, 40, 0.35);
-    --level-developing-text: #e8d47a;
-    --level-solid-bg:        rgba(40, 110, 80, 0.35);
-    --level-solid-text:      #7ae8b8;
-    --level-advanced-bg:     rgba(40, 80, 130, 0.35);
-    --level-advanced-text:   #7ab8e8;
+    /* Semantic */
+    --colour-danger:         #ff4d4d;
+    --colour-success:        #4dff9a;
+    --colour-warn:           #ffd84d;
 
-    --font-display: 'DM Serif Display', Georgia, serif;
-    --font-mono:    'DM Mono', 'Courier New', monospace;
-    --font-body:    'DM Sans', system-ui, sans-serif;
+    /* Stat level colours — game system palette */
+    --level-early-bg:        rgba(255, 80, 80, 0.15);
+    --level-early-border:    rgba(255, 80, 80, 0.35);
+    --level-early-text:      #ff8080;
 
+    --level-developing-bg:   rgba(255, 180, 50, 0.12);
+    --level-developing-border: rgba(255, 180, 50, 0.35);
+    --level-developing-text: #ffc84d;
+
+    --level-solid-bg:        rgba(50, 200, 120, 0.12);
+    --level-solid-border:    rgba(50, 200, 120, 0.35);
+    --level-solid-text:      #4dffaa;
+
+    --level-advanced-bg:     rgba(77, 184, 255, 0.12);
+    --level-advanced-border: rgba(77, 184, 255, 0.35);
+    --level-advanced-text:   #4db8ff;
+
+    /* Typography */
+    --font-mono:   'Space Mono', 'Courier New', monospace;
+    --font-body:   'Space Grotesk', system-ui, sans-serif;
+
+    /* Spacing */
     --space-1:  4px;
     --space-2:  8px;
     --space-3:  12px;
@@ -50,15 +70,16 @@
     --space-7:  48px;
     --space-8:  64px;
 
-    --width-narrow: 560px;
-    --width-wide:   840px;
+    /* Layout */
+    --width-narrow: 580px;
+    --width-wide:   880px;
 
-    --radius-sm: 4px;
-    --radius-md: 8px;
+    --radius-sm: 2px;
+    --radius-md: 4px;
 
-    --transition-fast: 120ms ease;
-    --transition-base: 220ms ease;
-    --transition-slow: 380ms ease;
+    --transition-fast: 100ms ease;
+    --transition-base: 180ms ease;
+    --transition-slow: 320ms ease;
 }
 
 
@@ -85,9 +106,15 @@ body {
     color: var(--colour-text);
     font-family: var(--font-body);
     font-weight: 300;
-    line-height: 1.65;
+    line-height: 1.6;
     min-height: 100vh;
     overflow-x: hidden;
+
+    /* Subtle grid texture — system feel */
+    background-image:
+        linear-gradient(rgba(77, 184, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(77, 184, 255, 0.015) 1px, transparent 1px);
+    background-size: 32px 32px;
 }
 
 a {
@@ -110,7 +137,7 @@ button {
 
 textarea,
 input {
-    font-family: var(--font-body);
+    font-family: var(--font-mono);
 }
 
 .hidden {
@@ -139,7 +166,7 @@ input {
 @keyframes screen-in {
     from {
         opacity: 0;
-        transform: translateY(14px);
+        transform: translateY(10px);
     }
     to {
         opacity: 1;
@@ -170,35 +197,48 @@ input {
     max-width: var(--width-wide);
 }
 
+/* System label — monospaced micro-tag above headings */
+.screen-sys-label {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    font-weight: 400;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--colour-accent-dim);
+    display: block;
+    margin-bottom: var(--space-4);
+}
+
 
 /* ------------------------------------------------------------
    TYPOGRAPHY
    ------------------------------------------------------------ */
 
 .screen-heading {
-    font-family: var(--font-display);
-    font-size: clamp(1.5rem, 4vw, 2rem);
-    font-weight: 400;
+    font-family: var(--font-mono);
+    font-size: clamp(1.25rem, 3.5vw, 1.75rem);
+    font-weight: 700;
     color: var(--colour-text);
     line-height: 1.2;
     margin-bottom: var(--space-4);
+    letter-spacing: -0.01em;
 }
 
 .screen-prompt {
-    font-family: var(--font-display);
-    font-size: clamp(1.25rem, 3.5vw, 1.625rem);
+    font-family: var(--font-body);
+    font-size: clamp(1.125rem, 3vw, 1.375rem);
     font-weight: 400;
-    font-style: italic;
     color: var(--colour-text);
-    line-height: 1.35;
+    line-height: 1.45;
     margin-bottom: var(--space-5);
 }
 
 .screen-body {
     font-size: 0.9375rem;
     color: var(--colour-text-muted);
-    line-height: 1.75;
+    line-height: 1.7;
     margin-bottom: var(--space-4);
+    font-weight: 300;
 }
 
 .screen-body--centered {
@@ -225,27 +265,32 @@ input {
     gap: var(--space-2);
     padding: var(--space-3) var(--space-5);
     border-radius: var(--radius-sm);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-weight: 400;
-    letter-spacing: 0.04em;
-    transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast);
+    letter-spacing: 0.06em;
+    transition: all var(--transition-fast);
     white-space: nowrap;
     text-decoration: none;
     line-height: 1.4;
+    font-family: var(--font-mono);
 }
 
 .btn--primary {
-    background: var(--colour-accent);
-    color: var(--colour-bg);
-    font-weight: 500;
+    background: transparent;
+    color: var(--colour-accent);
+    border: 1px solid var(--colour-accent-dim);
+    font-weight: 700;
 }
 
 .btn--primary:hover {
-    background: var(--colour-text);
+    background: var(--colour-accent-glow);
+    border-color: var(--colour-accent);
+    color: var(--colour-accent);
+    box-shadow: 0 0 16px rgba(77, 184, 255, 0.15);
 }
 
 .btn--primary:disabled {
-    opacity: 0.4;
+    opacity: 0.3;
     cursor: not-allowed;
 }
 
@@ -263,13 +308,12 @@ input {
 .btn--large {
     padding: var(--space-4) var(--space-7);
     font-size: 0.9375rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    letter-spacing: 0.15em;
 }
 
 .btn--small {
     padding: var(--space-2) var(--space-4);
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
 }
 
 .btn--choice {
@@ -282,25 +326,54 @@ input {
     border: 1px solid var(--colour-border);
     border-radius: var(--radius-md);
     text-align: left;
-    transition: border-color var(--transition-base), background var(--transition-base);
+    font-family: var(--font-body);
+    transition: border-color var(--transition-base), background var(--transition-base), box-shadow var(--transition-base);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn--choice::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 2px;
+    height: 100%;
+    background: var(--colour-accent-dim);
+    transition: background var(--transition-base);
 }
 
 .btn--choice:hover {
     border-color: var(--colour-accent-dim);
     background: var(--colour-surface-raise);
+    box-shadow: 0 0 24px rgba(77, 184, 255, 0.06);
+}
+
+.btn--choice:hover::before {
+    background: var(--colour-accent);
+}
+
+.choice-tag {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--colour-accent-dim);
+    text-transform: uppercase;
 }
 
 .choice-label {
-    font-family: var(--font-display);
-    font-size: 1.125rem;
+    font-family: var(--font-body);
+    font-size: 1.0625rem;
     color: var(--colour-text);
-    font-weight: 400;
+    font-weight: 500;
 }
 
 .choice-sub {
     font-size: 0.875rem;
     color: var(--colour-text-muted);
     font-weight: 300;
+    font-family: var(--font-body);
 }
 
 
@@ -308,21 +381,39 @@ input {
    LANDING
    ------------------------------------------------------------ */
 
+.landing-tag {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.3em;
+    color: var(--colour-accent-dim);
+    text-transform: uppercase;
+    animation: blink-in 2s ease both;
+}
+
+@keyframes blink-in {
+    0%, 49% { opacity: 0; }
+    50%, 100% { opacity: 1; }
+}
+
 .landing-wordmark {
     font-family: var(--font-mono);
-    font-size: clamp(3.5rem, 12vw, 6.5rem);
-    font-weight: 300;
-    letter-spacing: 0.3em;
-    color: var(--colour-accent);
+    font-size: clamp(4rem, 15vw, 8rem);
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    color: var(--colour-text);
     line-height: 1;
+    position: relative;
+    /* Subtle glow */
+    text-shadow: 0 0 40px rgba(77, 184, 255, 0.2), 0 0 80px rgba(77, 184, 255, 0.08);
 }
 
 .landing-statement {
-    font-family: var(--font-display);
-    font-size: clamp(1.0625rem, 2.5vw, 1.25rem);
+    font-family: var(--font-body);
+    font-size: clamp(0.9375rem, 2vw, 1.0625rem);
     color: var(--colour-text-muted);
-    line-height: 1.55;
-    max-width: 380px;
+    line-height: 1.65;
+    max-width: 360px;
+    font-weight: 300;
 }
 
 
@@ -354,15 +445,16 @@ input {
     align-items: flex-start;
     gap: var(--space-3);
     flex-wrap: wrap;
+    margin-bottom: 0;
 }
 
 .field-label {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    font-weight: 500;
-    letter-spacing: 0.12em;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: var(--colour-text-muted);
+    color: var(--colour-accent-dim);
 }
 
 .field-input {
@@ -371,16 +463,18 @@ input {
     border: 1px solid var(--colour-border);
     border-radius: var(--radius-sm);
     color: var(--colour-text);
-    font-size: 0.9375rem;
-    font-weight: 300;
+    font-size: 0.875rem;
+    font-weight: 400;
     padding: var(--space-3) var(--space-4);
-    transition: border-color var(--transition-fast);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
     outline: none;
     line-height: 1.65;
+    font-family: var(--font-mono);
 }
 
 .field-input:focus {
     border-color: var(--colour-accent-dim);
+    box-shadow: 0 0 0 1px var(--colour-accent-dim);
 }
 
 .field-input::placeholder {
@@ -392,7 +486,7 @@ textarea.field-input {
 }
 
 .field-input--tall {
-    min-height: 320px;
+    min-height: 300px;
 }
 
 .field-input--medium {
@@ -400,9 +494,11 @@ textarea.field-input {
 }
 
 .field-hint {
-    font-size: 0.8125rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
     color: var(--colour-text-muted);
     min-height: 1.2em;
+    letter-spacing: 0.04em;
 }
 
 .field-hint--error {
@@ -426,26 +522,27 @@ textarea.field-input {
 }
 
 .loader-dot {
-    width: 5px;
-    height: 5px;
+    width: 4px;
+    height: 4px;
     border-radius: 50%;
     background: var(--colour-accent);
-    animation: loader-pulse 1.2s ease-in-out infinite;
+    animation: loader-pulse 1s ease-in-out infinite;
 }
 
-.loader-dot:nth-child(2) { animation-delay: 0.2s; }
-.loader-dot:nth-child(3) { animation-delay: 0.4s; }
+.loader-dot:nth-child(2) { animation-delay: 0.15s; }
+.loader-dot:nth-child(3) { animation-delay: 0.3s; }
 
 @keyframes loader-pulse {
-    0%, 80%, 100% { opacity: 0.2; transform: scale(0.75); }
-    40%            { opacity: 1;   transform: scale(1);    }
+    0%, 80%, 100% { opacity: 0.15; transform: scale(0.7); }
+    40%            { opacity: 1;   transform: scale(1);   }
 }
 
 .loader-text {
     font-family: var(--font-mono);
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     color: var(--colour-text-muted);
-    letter-spacing: 0.04em;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
 }
 
 
@@ -454,23 +551,28 @@ textarea.field-input {
    ------------------------------------------------------------ */
 
 .reimagine-progress {
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    color: var(--colour-text-muted);
-    letter-spacing: 0.1em;
-    margin-bottom: var(--space-6);
     display: flex;
     align-items: center;
-    gap: var(--space-1);
+    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+}
+
+.reimagine-progress .screen-sys-label {
+    margin-bottom: 0;
+    margin-right: var(--space-1);
 }
 
 .reimagine-progress__current {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    font-weight: 700;
     color: var(--colour-accent);
-    font-weight: 500;
 }
 
 .reimagine-progress__sep,
 .reimagine-progress__total {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
     color: var(--colour-text-faint);
 }
 
@@ -500,7 +602,7 @@ textarea.field-input {
     align-items: center;
     gap: var(--space-5);
     width: 100%;
-    max-width: 340px;
+    max-width: 320px;
 }
 
 .loading-bar {
@@ -513,8 +615,9 @@ textarea.field-input {
 .loading-bar__fill {
     height: 100%;
     background: var(--colour-accent);
-    animation: loading-sweep 1.8s ease-in-out infinite;
+    animation: loading-sweep 1.6s ease-in-out infinite;
     transform-origin: left;
+    box-shadow: 0 0 8px var(--colour-accent);
 }
 
 @keyframes loading-sweep {
@@ -526,9 +629,10 @@ textarea.field-input {
 
 .loading-label {
     font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    color: var(--colour-text-muted);
-    letter-spacing: 0.04em;
+    font-size: 0.6875rem;
+    color: var(--colour-accent-dim);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
 }
 
 
@@ -550,7 +654,7 @@ textarea.field-input {
     border-radius: var(--radius-md);
     padding: var(--space-5);
     cursor: pointer;
-    transition: border-color var(--transition-base), background var(--transition-base);
+    transition: border-color var(--transition-base), background var(--transition-base), box-shadow var(--transition-base);
     position: relative;
     user-select: none;
 }
@@ -561,19 +665,23 @@ textarea.field-input {
 }
 
 .practice-card.selected {
-    border-color: var(--colour-accent);
+    border-color: var(--colour-accent-dim);
     background: var(--colour-accent-glow);
+    box-shadow: 0 0 20px rgba(77, 184, 255, 0.08), inset 0 0 0 1px var(--colour-accent-dim);
 }
 
 .card-check {
     position: absolute;
     top: var(--space-3);
-    right: var(--space-4);
+    right: var(--space-3);
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.625rem;
+    font-weight: 700;
     color: var(--colour-accent);
+    letter-spacing: 0.1em;
     opacity: 0;
     transition: opacity var(--transition-fast);
+    text-transform: uppercase;
 }
 
 .practice-card.selected .card-check {
@@ -581,19 +689,22 @@ textarea.field-input {
 }
 
 .card-name {
-    font-family: var(--font-display);
-    font-size: 1rem;
-    font-weight: 400;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    font-weight: 700;
     color: var(--colour-text);
     line-height: 1.3;
     margin-bottom: var(--space-3);
     padding-right: var(--space-5);
+    letter-spacing: -0.01em;
 }
 
 .card-explanation {
+    font-family: var(--font-body);
     font-size: 0.875rem;
     color: var(--colour-text-muted);
     line-height: 1.65;
+    font-weight: 300;
 }
 
 
@@ -603,25 +714,28 @@ textarea.field-input {
 
 .origin-story {
     background: var(--colour-surface);
+    border: 1px solid var(--colour-border);
     border-left: 2px solid var(--colour-accent-dim);
     padding: var(--space-4) var(--space-5);
     margin-bottom: var(--space-6);
-    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
 .origin-story__label {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    letter-spacing: 0.12em;
+    font-size: 0.625rem;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
     color: var(--colour-accent-dim);
     margin-bottom: var(--space-3);
 }
 
 .origin-story__text {
+    font-family: var(--font-body);
     font-size: 0.9375rem;
     color: var(--colour-text-muted);
     line-height: 1.75;
+    font-weight: 300;
 }
 
 .sheet-header {
@@ -630,23 +744,36 @@ textarea.field-input {
     border-bottom: 1px solid var(--colour-border);
 }
 
+.sheet-sys-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-3);
+}
+
+.sheet-sys-row .screen-sys-label {
+    margin-bottom: 0;
+}
+
 .sheet-practice {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    letter-spacing: 0.14em;
+    font-size: 0.625rem;
+    letter-spacing: 0.15em;
     text-transform: uppercase;
     color: var(--colour-text-muted);
-    margin-bottom: var(--space-2);
 }
 
 .sheet-path-name {
-    font-family: var(--font-display);
-    font-size: clamp(1.625rem, 5vw, 2.25rem);
-    font-weight: 400;
+    font-family: var(--font-mono);
+    font-size: clamp(1.5rem, 5vw, 2.25rem);
+    font-weight: 700;
     color: var(--colour-text);
     line-height: 1.1;
+    letter-spacing: -0.02em;
+    text-shadow: 0 0 30px rgba(77, 184, 255, 0.15);
 }
 
+/* Stat rows */
 .stat-list {
     display: flex;
     flex-direction: column;
@@ -666,16 +793,17 @@ textarea.field-input {
 }
 
 .stat-name {
+    font-family: var(--font-body);
     font-size: 0.9375rem;
     font-weight: 400;
     color: var(--colour-text);
     line-height: 1.3;
 }
 
-/* Tap-to-reveal trigger — used on stat names and game-layer labels */
+/* Tap-to-reveal trigger */
 .term {
     cursor: pointer;
-    border-bottom: 1px dotted var(--colour-accent-dim);
+    border-bottom: 1px dashed var(--colour-accent-dim);
     transition: color var(--transition-fast), border-color var(--transition-fast);
     display: inline;
 }
@@ -687,25 +815,47 @@ textarea.field-input {
 
 .stat-level {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    font-weight: 500;
-    letter-spacing: 0.1em;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     padding: var(--space-1) var(--space-3);
     border-radius: var(--radius-sm);
     white-space: nowrap;
+    border: 1px solid transparent;
 }
 
-.stat-level--early      { background: var(--level-early-bg);      color: var(--level-early-text);      }
-.stat-level--developing { background: var(--level-developing-bg); color: var(--level-developing-text); }
-.stat-level--solid      { background: var(--level-solid-bg);      color: var(--level-solid-text);      }
-.stat-level--advanced   { background: var(--level-advanced-bg);   color: var(--level-advanced-text);   }
+.stat-level--early {
+    background: var(--level-early-bg);
+    border-color: var(--level-early-border);
+    color: var(--level-early-text);
+}
+
+.stat-level--developing {
+    background: var(--level-developing-bg);
+    border-color: var(--level-developing-border);
+    color: var(--level-developing-text);
+}
+
+.stat-level--solid {
+    background: var(--level-solid-bg);
+    border-color: var(--level-solid-border);
+    color: var(--level-solid-text);
+}
+
+.stat-level--advanced {
+    background: var(--level-advanced-bg);
+    border-color: var(--level-advanced-border);
+    color: var(--level-advanced-text);
+}
 
 .sheet-footer-note {
-    font-size: 0.8125rem;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
     color: var(--colour-text-faint);
-    font-style: italic;
+    letter-spacing: 0.15em;
     margin-top: var(--space-5);
+    text-transform: uppercase;
 }
 
 
@@ -734,6 +884,7 @@ textarea.field-input {
     font-size: 0.9375rem;
     color: var(--colour-text);
     user-select: none;
+    font-family: var(--font-body);
 }
 
 .flag-item:hover {
@@ -746,8 +897,8 @@ textarea.field-input {
 
 .flag-item input[type="checkbox"] {
     accent-color: var(--colour-danger);
-    width: 15px;
-    height: 15px;
+    width: 14px;
+    height: 14px;
     cursor: pointer;
     flex-shrink: 0;
 }
@@ -758,30 +909,45 @@ textarea.field-input {
    ------------------------------------------------------------ */
 
 .encounter-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-5);
+}
+
+.encounter-eyebrow__sep {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    letter-spacing: 0.14em;
+    font-size: 0.625rem;
+    color: var(--colour-text-faint);
+}
+
+.encounter-eyebrow__sub {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: var(--colour-text-muted);
-    margin-bottom: var(--space-4);
+    color: var(--colour-text-faint);
 }
 
 .encounter-name {
-    font-family: var(--font-display);
-    font-size: clamp(1.375rem, 4vw, 1.875rem);
-    font-weight: 400;
+    font-family: var(--font-mono);
+    font-size: clamp(1.25rem, 4vw, 1.75rem);
+    font-weight: 700;
     color: var(--colour-text);
     line-height: 1.2;
     margin-bottom: var(--space-4);
+    letter-spacing: -0.01em;
 }
 
 .encounter-situation {
+    font-family: var(--font-body);
     font-size: 0.9375rem;
     color: var(--colour-text-muted);
     line-height: 1.75;
     margin-bottom: var(--space-6);
     padding-bottom: var(--space-5);
     border-bottom: 1px solid var(--colour-border);
+    font-weight: 300;
 }
 
 .encounter-prompt {
@@ -790,43 +956,48 @@ textarea.field-input {
 
 .encounter-prompt__label {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    letter-spacing: 0.12em;
+    font-size: 0.625rem;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: var(--colour-text-muted);
+    color: var(--colour-accent-dim);
     margin-bottom: var(--space-3);
+    display: block;
 }
 
 .expert-response {
     margin-top: var(--space-5);
     background: var(--colour-surface);
+    border: 1px solid var(--colour-border);
     border-left: 2px solid var(--colour-accent-dim);
     padding: var(--space-4) var(--space-5);
-    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
     animation: screen-in var(--transition-base) ease both;
 }
 
 .expert-response__label {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    letter-spacing: 0.12em;
+    font-size: 0.625rem;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
     color: var(--colour-accent-dim);
     margin-bottom: var(--space-3);
 }
 
 .expert-response__text {
+    font-family: var(--font-body);
     font-size: 0.9375rem;
     color: var(--colour-text-muted);
     line-height: 1.75;
+    font-weight: 300;
 }
 
 .encounter-footer {
-    font-size: 0.8125rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
     color: var(--colour-text-faint);
-    font-style: italic;
     margin-top: var(--space-6);
     text-align: center;
+    letter-spacing: 0.05em;
 }
 
 
@@ -835,11 +1006,12 @@ textarea.field-input {
    ------------------------------------------------------------ */
 
 .waitlist-heading {
-    font-family: var(--font-display);
-    font-size: clamp(1.5rem, 5vw, 2.25rem);
-    font-weight: 400;
+    font-family: var(--font-mono);
+    font-size: clamp(1.375rem, 5vw, 2rem);
+    font-weight: 700;
     color: var(--colour-text);
     line-height: 1.2;
+    letter-spacing: -0.01em;
 }
 
 .waitlist-confirmation {
@@ -848,9 +1020,10 @@ textarea.field-input {
 
 .waitlist-confirmation__text {
     font-family: var(--font-mono);
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     color: var(--colour-accent);
-    letter-spacing: 0.04em;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
 }
 
 
@@ -861,7 +1034,7 @@ textarea.field-input {
 .tooltip-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(13, 13, 13, 0.88);
+    background: rgba(8, 12, 16, 0.92);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     display: flex;
@@ -869,7 +1042,7 @@ textarea.field-input {
     justify-content: center;
     padding: var(--space-5);
     z-index: 200;
-    animation: tooltip-fade-in 160ms ease both;
+    animation: tooltip-fade-in 140ms ease both;
 }
 
 @keyframes tooltip-fade-in {
@@ -879,25 +1052,27 @@ textarea.field-input {
 
 .tooltip-panel {
     background: var(--colour-surface-raise);
-    border: 1px solid var(--colour-border-raise);
+    border: 1px solid var(--colour-border-bright);
     border-radius: var(--radius-md);
     padding: var(--space-6);
-    max-width: 420px;
+    max-width: 400px;
     width: 100%;
     position: relative;
-    animation: tooltip-rise 200ms ease both;
+    animation: tooltip-rise 180ms ease both;
+    box-shadow: 0 0 40px rgba(77, 184, 255, 0.1);
 }
 
 @keyframes tooltip-rise {
-    from { opacity: 0; transform: translateY(10px) scale(0.97); }
-    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)   scale(1);    }
 }
 
 .tooltip-close {
     position: absolute;
     top: var(--space-4);
     right: var(--space-4);
-    font-size: 1.125rem;
+    font-size: 1rem;
+    font-family: var(--font-mono);
     color: var(--colour-text-muted);
     line-height: 1;
     padding: var(--space-1) var(--space-2);
@@ -910,17 +1085,19 @@ textarea.field-input {
 
 .tooltip-term {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    letter-spacing: 0.14em;
+    font-size: 0.625rem;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
     color: var(--colour-accent);
     margin-bottom: var(--space-4);
 }
 
 .tooltip-body {
+    font-family: var(--font-body);
     font-size: 0.9375rem;
     color: var(--colour-text-muted);
     line-height: 1.75;
+    font-weight: 300;
 }
 
 
@@ -961,6 +1138,12 @@ textarea.field-input {
 
     .stat-level {
         align-self: flex-start;
+    }
+
+    .sheet-sys-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
     }
 }
 

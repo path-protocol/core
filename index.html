@@ -6,7 +6,7 @@
     <title>Path</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,11 +16,12 @@
     ============================================================ -->
     <section id="screen-landing" class="screen active">
         <div class="screen-inner screen-inner--centered">
+            <div class="landing-tag">SYSTEM INITIALISED</div>
             <div class="landing-wordmark">PATH</div>
             <p class="landing-statement">
-                Path reveals where you actually are in your career — and what it takes to reach the level above you.
+                Reveals where you actually are in your career — and what it takes to reach the level above you.
             </p>
-            <button class="btn btn--primary btn--large" id="btn-begin">Begin</button>
+            <button class="btn btn--primary btn--large" id="btn-begin">[ BEGIN ]</button>
         </div>
     </section>
 
@@ -30,15 +31,18 @@
     ============================================================ -->
     <section id="screen-path-select" class="screen">
         <div class="screen-inner screen-inner--centered">
+            <div class="screen-sys-label">SELECT PATH</div>
             <p class="screen-prompt">Do you have professional work experience, or are you just starting out?</p>
             <div class="choice-stack">
                 <button class="btn btn--choice" id="btn-cv-path">
+                    <span class="choice-tag">PATH A</span>
                     <span class="choice-label">I have work experience</span>
-                    <span class="choice-sub">You'll paste your CV and we'll identify your specific practice.</span>
+                    <span class="choice-sub">Paste your CV. We identify your specific practice and build your character sheet.</span>
                 </button>
                 <button class="btn btn--choice" id="btn-reimagine-path">
+                    <span class="choice-tag">PATH B</span>
                     <span class="choice-label">I'm just starting out</span>
-                    <span class="choice-sub">We'll surface what you already know and where it naturally points.</span>
+                    <span class="choice-sub">Answer five questions. We surface what you already know and where it points.</span>
                 </button>
             </div>
         </div>
@@ -46,53 +50,17 @@
 
 
     <!-- ============================================================
-         SCREEN: API KEY
-    ============================================================ -->
-    <section id="screen-api-key" class="screen">
-        <div class="screen-inner screen-inner--narrow">
-            <h2 class="screen-heading">Connect your AI key</h2>
-            <p class="screen-body">
-                Path uses the Gemini API to analyse your experience and build your character sheet.
-                Your key is stored only in this browser session — never sent to a server.
-            </p>
-            <p class="screen-body">
-                Get a free key from
-                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="link">Google AI Studio</a>.
-            </p>
-            <div class="field-group">
-                <label class="field-label" for="input-api-key">Gemini API key</label>
-                <input
-                    type="password"
-                    id="input-api-key"
-                    class="field-input"
-                    placeholder="AIza..."
-                    autocomplete="off"
-                    spellcheck="false"
-                />
-                <p class="field-hint" id="api-key-hint"></p>
-            </div>
-            <button class="btn btn--primary" id="btn-validate-key">Validate key</button>
-            <div class="inline-loader hidden" id="api-key-loader">
-                <span class="loader-dot"></span>
-                <span class="loader-dot"></span>
-                <span class="loader-dot"></span>
-                <span class="loader-text">Checking key...</span>
-            </div>
-        </div>
-    </section>
-
-
-    <!-- ============================================================
-         SCREEN: CV PASTE (CV path only)
+         SCREEN: CV PASTE (CV path — before API key)
     ============================================================ -->
     <section id="screen-cv-paste" class="screen">
         <div class="screen-inner screen-inner--narrow">
+            <div class="screen-sys-label">INPUT // CV</div>
             <h2 class="screen-heading">Your CV</h2>
             <p class="screen-body">
                 Paste your full CV — not a shortened version. We use this to understand what you actually do, not just your job title.
             </p>
             <div class="field-group">
-                <label class="field-label" for="input-cv">CV text</label>
+                <label class="field-label" for="input-cv">CV TEXT</label>
                 <textarea
                     id="input-cv"
                     class="field-input field-input--tall"
@@ -100,18 +68,20 @@
                     spellcheck="false"
                 ></textarea>
             </div>
-            <button class="btn btn--primary" id="btn-analyse-cv">Analyse</button>
+            <button class="btn btn--primary" id="btn-cv-next">Continue</button>
         </div>
     </section>
 
 
     <!-- ============================================================
-         SCREEN: RE-IMAGINE QUESTIONS (Re-imagine path only)
+         SCREEN: RE-IMAGINE QUESTIONS (Re-imagine path — before API key)
+         One question shown at a time.
     ============================================================ -->
     <section id="screen-reimagine" class="screen">
         <div class="screen-inner screen-inner--narrow">
 
             <div class="reimagine-progress">
+                <span class="screen-sys-label">QUESTION</span>
                 <span class="reimagine-progress__current" id="reimagine-q-num">1</span>
                 <span class="reimagine-progress__sep">/</span>
                 <span class="reimagine-progress__total">5</span>
@@ -162,13 +132,51 @@
 
 
     <!-- ============================================================
+         SCREEN: API KEY (shown after input is collected)
+    ============================================================ -->
+    <section id="screen-api-key" class="screen">
+        <div class="screen-inner screen-inner--narrow">
+            <div class="screen-sys-label">SYSTEM // AUTH</div>
+            <h2 class="screen-heading">Connect your AI key</h2>
+            <p class="screen-body">
+                Path uses the Gemini API to analyse your experience and generate your character sheet.
+                Your key stays in this browser session only — never sent to a server.
+            </p>
+            <p class="screen-body">
+                Get a free key from
+                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="link">Google AI Studio</a>.
+            </p>
+            <div class="field-group">
+                <label class="field-label" for="input-api-key">GEMINI API KEY</label>
+                <input
+                    type="password"
+                    id="input-api-key"
+                    class="field-input"
+                    placeholder="AIza..."
+                    autocomplete="off"
+                    spellcheck="false"
+                />
+                <p class="field-hint" id="api-key-hint"></p>
+            </div>
+            <button class="btn btn--primary" id="btn-validate-key">Validate &amp; Analyse</button>
+            <div class="inline-loader hidden" id="api-key-loader">
+                <span class="loader-dot"></span>
+                <span class="loader-dot"></span>
+                <span class="loader-dot"></span>
+                <span class="loader-text">Validating key...</span>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
          SCREEN: LOADING — Gemini Call 1
     ============================================================ -->
     <section id="screen-loading-1" class="screen">
         <div class="screen-inner screen-inner--centered">
             <div class="loading-block">
                 <div class="loading-bar"><div class="loading-bar__fill"></div></div>
-                <p class="loading-label" id="loading-1-label">Reading your career history...</p>
+                <p class="loading-label" id="loading-1-label">READING CAREER HISTORY...</p>
             </div>
         </div>
     </section>
@@ -179,6 +187,7 @@
     ============================================================ -->
     <section id="screen-cards-1" class="screen">
         <div class="screen-inner screen-inner--wide">
+            <div class="screen-sys-label">PRACTICE IDENTIFICATION // ROUND 01</div>
             <h2 class="screen-heading">Which of these feels closest to your actual work?</h2>
             <p class="screen-body">Select all that apply. We'll narrow it down from there.</p>
             <div class="card-grid" id="card-grid-1"></div>
@@ -194,6 +203,7 @@
     ============================================================ -->
     <section id="screen-cards-2" class="screen">
         <div class="screen-inner screen-inner--wide">
+            <div class="screen-sys-label">PRACTICE IDENTIFICATION // ROUND 02</div>
             <h2 class="screen-heading">Let's get more precise.</h2>
             <p class="screen-body">Select the one that fits best.</p>
             <div class="card-grid" id="card-grid-2"></div>
@@ -211,7 +221,7 @@
         <div class="screen-inner screen-inner--centered">
             <div class="loading-block">
                 <div class="loading-bar"><div class="loading-bar__fill"></div></div>
-                <p class="loading-label" id="loading-2-label">Building your character sheet...</p>
+                <p class="loading-label" id="loading-2-label">BUILDING CHARACTER SHEET...</p>
             </div>
         </div>
     </section>
@@ -223,24 +233,28 @@
     <section id="screen-character-sheet" class="screen">
         <div class="screen-inner screen-inner--narrow">
 
+            <!-- Origin Story: Re-imagine path only -->
             <div class="origin-story hidden" id="origin-story-block">
                 <div class="origin-story__label">
-                    <span class="term" data-term="origin-story">Origin Story</span>
+                    <span class="term" data-term="origin-story">ORIGIN STORY</span>
                 </div>
                 <p class="origin-story__text" id="origin-story-text"></p>
             </div>
 
             <div class="sheet-header">
-                <div class="sheet-practice" id="sheet-practice-name"></div>
+                <div class="sheet-sys-row">
+                    <span class="screen-sys-label">CHARACTER SHEET</span>
+                    <span class="sheet-practice" id="sheet-practice-name"></span>
+                </div>
                 <div class="sheet-path-name" id="sheet-path-name"></div>
             </div>
 
             <div class="stat-list" id="stat-list"></div>
 
-            <p class="sheet-footer-note" id="sheet-footer-note">These reflect where you are now. They change as you play.</p>
+            <p class="sheet-footer-note" id="sheet-footer-note">THESE REFLECT WHERE YOU ARE NOW. THEY CHANGE AS YOU PLAY.</p>
 
             <div class="screen-actions">
-                <button class="btn btn--primary" id="btn-sheet-confirm">This is accurate</button>
+                <button class="btn btn--primary" id="btn-sheet-confirm">Confirmed — this is accurate</button>
                 <button class="btn btn--ghost" id="btn-sheet-flag">Some of this is off</button>
             </div>
 
@@ -253,10 +267,11 @@
     ============================================================ -->
     <section id="screen-flag" class="screen">
         <div class="screen-inner screen-inner--narrow">
+            <div class="screen-sys-label">FLAG // STATS</div>
             <h2 class="screen-heading">Which stats feel off?</h2>
             <p class="screen-body">
                 Select the ones that don't reflect your experience accurately.
-                Your feedback is recorded — it helps Path improve.
+                Your feedback is recorded.
             </p>
             <div class="flag-list" id="flag-list"></div>
             <div class="screen-actions">
@@ -273,14 +288,16 @@
         <div class="screen-inner screen-inner--narrow">
 
             <div class="encounter-eyebrow">
-                <span class="term" data-term="encounter">Encounter</span>
+                <span class="term" data-term="encounter">ENCOUNTER</span>
+                <span class="encounter-eyebrow__sep">—</span>
+                <span class="encounter-eyebrow__sub">PREVIEW</span>
             </div>
 
             <h2 class="encounter-name" id="encounter-name"></h2>
             <p class="encounter-situation" id="encounter-situation"></p>
 
             <div class="encounter-prompt">
-                <p class="encounter-prompt__label">What would you do here?</p>
+                <p class="encounter-prompt__label">WHAT WOULD YOU DO HERE?</p>
                 <textarea
                     id="input-encounter-response"
                     class="field-input field-input--medium"
@@ -295,7 +312,7 @@
             </div>
 
             <div class="expert-response hidden" id="expert-response-block">
-                <div class="expert-response__label">Expert response</div>
+                <div class="expert-response__label">EXPERT RESPONSE</div>
                 <p class="expert-response__text" id="expert-response-text"></p>
                 <div class="screen-actions">
                     <button class="btn btn--primary" id="btn-encounter-continue">Continue</button>
@@ -313,6 +330,7 @@
     ============================================================ -->
     <section id="screen-waitlist" class="screen">
         <div class="screen-inner screen-inner--centered">
+            <div class="screen-sys-label">SESSION COMPLETE</div>
             <div class="waitlist-heading">Your Path is being built.</div>
             <p class="screen-body screen-body--centered">
                 The full experience — Encounters, Known Opponents, Abilities, Rank progression — is in development.
@@ -334,7 +352,9 @@
             </div>
 
             <div class="waitlist-confirmation hidden" id="waitlist-confirmation">
-                <p class="waitlist-confirmation__text" id="waitlist-confirmation-text">You're on the list. We'll be in touch.</p>
+                <p class="waitlist-confirmation__text" id="waitlist-confirmation-text">
+                    YOU'RE ON THE LIST. WE'LL BE IN TOUCH.
+                </p>
             </div>
         </div>
     </section>
@@ -352,7 +372,7 @@
     </div>
 
 
-    <!-- Firebase SDKs (compat build — works without a bundler) -->
+    <!-- Firebase SDKs (compat build — no bundler required) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 

@@ -4,7 +4,10 @@
    Vanilla JS. No frameworks. No bundlers.
    4-space indentation. British English comments.
 
-   Gemini model: gemini-2.5-flash (verified March 2026)
+   Gemini model: gemini-2.5-flash (all calls — confirmed stable March 2026)
+   CV input is compressed before sending to keep prompt tokens low
+   and ensure the JSON response is never truncated.
+
    Firebase project: path-protocol
    ============================================================ */
 
@@ -22,8 +25,8 @@ const FIREBASE_CONFIG = {
     appId:             "1:808785928819:web:80c912f0d06c9aa86f4006"
 };
 
-const GEMINI_MODEL    = "gemini-2.5-flash";
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+const GEMINI_MODEL    = "gemini-2.5-flash";
 
 
 /* ------------------------------------------------------------
@@ -64,11 +67,11 @@ const state = {
         expertResponse: null
     },
 
-    situationEngaged: false,
-    waitlistSignup:   false,
-    waitlistEmail:    null,
+    situationEngaged:  false,
+    waitlistSignup:    false,
+    waitlistEmail:     null,
 
-    // Internal — not written to Firestore
+    // Internal flow tracking
     reimagineCurrentQ: 1
 };
 
@@ -142,22 +145,34 @@ function showScreen(id) {
    GEMINI API
    ------------------------------------------------------------ */
 
-async function callGemini(prompt) {
+async function callGemini(prompt, maxTokens) {
     const url = `${GEMINI_API_BASE}/${GEMINI_MODEL}:generateContent?key=${state.geminiKey}`;
     const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+            generationConfig: {
+                temperature:     0.7,
+                maxOutputTokens: maxTokens || 8192
+            }
         })
     });
+
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.error?.message || `Gemini API error ${response.status}`);
     }
+
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    if (!text) {
+        const finishReason = data.candidates?.[0]?.finishReason;
+        throw new Error(`Gemini returned no text. Finish reason: ${finishReason || "unknown"}`);
+    }
+
+    return text;
 }
 
 async function validateGeminiKey(key) {
@@ -177,13 +192,74 @@ async function validateGeminiKey(key) {
     return true;
 }
 
+/* Robust JSON extraction — handles code fences and leading/trailing prose */
 function parseJsonResponse(raw) {
-    const cleaned = raw
-        .replace(/^```json\s*/i, "")
-        .replace(/^```\s*/i, "")
-        .replace(/```\s*$/i, "")
+    // Strip markdown code fences if present
+    let cleaned = raw
+        .replace(/^```json\s*/im, "")
+        .replace(/^```\s*/im, "")
+        .replace(/```\s*$/im, "")
         .trim();
-    return JSON.parse(cleaned);
+
+    // Try direct parse first
+    try {
+        return JSON.parse(cleaned);
+    } catch (_) {
+        // Fall through to extraction
+    }
+
+    // Extract JSON array or object from surrounding prose
+    const arrayMatch  = cleaned.match(/(\[[\s\S]*\])/);
+    const objectMatch = cleaned.match(/(\{[\s\S]*\})/);
+
+    if (arrayMatch) {
+        try { return JSON.parse(arrayMatch[1]); } catch (_) {}
+    }
+    if (objectMatch) {
+        try { return JSON.parse(objectMatch[1]); } catch (_) {}
+    }
+
+    // Log what we got to help diagnose future failures
+    console.error("PATH: Could not parse JSON from Gemini response:", cleaned.slice(0, 500));
+    throw new SyntaxError("Could not extract valid JSON from Gemini response");
+}
+
+
+/* ------------------------------------------------------------
+   CV COMPRESSION
+   Strips formatting noise and filler from pasted CV text before
+   sending to Gemini. Keeps all signal (roles, dates, tasks,
+   skills, results) and discards everything else.
+   Goal: reduce a 2,000-word CV to ~600 tokens without losing
+   any information the model needs to identify practice.
+   ------------------------------------------------------------ */
+
+function compressCV(raw) {
+    return raw
+        // Collapse runs of whitespace/newlines into single spaces
+        .replace(/\r\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .replace(/[ \t]{2,}/g, " ")
+        // Strip horizontal rules and repeated punctuation used as decorators
+        .replace(/[-=*_|]{3,}/g, "")
+        // Strip common boilerplate phrases (case-insensitive)
+        .replace(/references\s+available\s+(on\s+)?request\.?/gi, "")
+        .replace(/curriculum\s+vitae/gi, "")
+        .replace(/personal\s+statement\s*:/gi, "")
+        .replace(/objective\s*:/gi, "")
+        .replace(/profile\s*:/gi, "")
+        .replace(/i\s+am\s+a\s+(highly\s+)?(motivated|passionate|dedicated|driven|results[- ]oriented|dynamic|hardworking|detail[- ]oriented)\s+/gi, "")
+        .replace(/with\s+(a\s+)?(strong|proven|extensive|excellent)\s+(track\s+record|background|experience)\s+(of|in)\s+/gi, "")
+        // Strip URLs and email addresses (signal-free for this analysis)
+        .replace(/https?:\/\/\S+/g, "")
+        .replace(/\b[\w.+-]+@[\w-]+\.\w{2,}\b/g, "")
+        // Strip phone numbers
+        .replace(/(\+?\d[\d\s\-().]{7,}\d)/g, "")
+        // Strip nationality / date of birth lines (common in Nigerian/UK CVs)
+        .replace(/(nationality|date of birth|dob|gender|marital status)\s*:.*\n?/gi, "")
+        // Clean up leftover blank lines from stripping
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
 }
 
 
@@ -201,11 +277,11 @@ Extract:
 - Language pointing toward practice-level specificity
 - Indicators of seniority and experience depth
 
-Return exactly 3–5 practice options as a JSON array. Each object must have:
+Return exactly 3 to 5 practice options as a JSON array. Each object must have:
 - "name": precise practice name (e.g. "Early-stage B2B SaaS sales", not "Sales")
 - "explanation": two plain-language sentences describing what this practice involves day-to-day
 
-Return only a valid JSON array. No preamble, no markdown, no code fences.
+CRITICAL: Return ONLY a valid JSON array. No preamble, no explanation, no markdown, no code fences. Start your response with [ and end with ].
 
 CV:
 ${cvText}`;
@@ -217,30 +293,30 @@ function buildPromptReimagine(responses) {
 
 Find what their experiences already demonstrate. A person who organised a group trip demonstrates project coordination. A person who runs an online community demonstrates community management. A person who taught themselves to code demonstrates self-directed technical learning. Translate informal experience into practice-level signals.
 
-Return exactly 3–5 practice options as a JSON array. Each object must have:
+Return exactly 3 to 5 practice options as a JSON array. Each object must have:
 - "name": precise practice name matching the capability signals found
 - "explanation": two plain-language sentences describing what this practice involves and why their experiences point toward it
 
 Cards may point forward — toward where these signals naturally lead.
 
-Return only a valid JSON array. No preamble, no markdown, no code fences.
+CRITICAL: Return ONLY a valid JSON array. No preamble, no explanation, no markdown, no code fences. Start your response with [ and end with ].
 
 Responses:
 ${formatted}`;
 }
 
 function buildPromptReconcile(selectedNames) {
-    return `A user is identifying their career practice and selected multiple options in the first round, suggesting the options were too broad or overlapping.
+    return `A user is identifying their career practice and selected multiple options in round one, suggesting the options were too broad or overlapping.
 
 Selected practices: ${selectedNames.join(", ")}
 
-Generate 2–3 more precise practice options that make finer distinctions within or between the selected practices.
+Generate 2 to 3 more precise practice options that make finer distinctions within or between the selected practices.
 
-Return as a JSON array. Each object must have:
+Each object must have:
 - "name": more precise practice name
 - "explanation": two plain-language sentences
 
-Return only a valid JSON array. No preamble, no markdown, no code fences.`;
+CRITICAL: Return ONLY a valid JSON array. No preamble, no explanation, no markdown, no code fences. Start your response with [ and end with ].`;
 }
 
 function buildPromptCharacterSheet(practiceName, path) {
@@ -253,7 +329,7 @@ Identify:
 2. What an expert practitioner does differently
 3. The key dimensions of judgement that separate them
 
-Generate 4–6 stats measuring the user's starting level across those dimensions.
+Generate 4 to 6 stats measuring the user's starting level across those dimensions.
 
 Each stat must have:
 - "name": plain-language, immediately self-explanatory to someone in this field. Not abstract. Not metaphorical. (e.g. "Case Theory Construction" not "Pattern Lock")
@@ -262,12 +338,12 @@ Each stat must have:
 - "isLowest": true for the one stat with the weakest starting level, false for all others
 
 Also generate:
-- "pathName": [Field Noun] + [Judgement Word] (e.g. "Product Sense", "Legal Reasoning", "Clinical Judgement")
+- "pathName": two words — [Field Noun] + [Judgement Word] (e.g. "Product Sense", "Legal Reasoning", "Clinical Judgement")
 - "originStory": for reimagine path only — one short paragraph describing what the user's experiences already demonstrate and where that naturally points. For cv path, return null.
 
 Levels should reflect honest starting baselines — not flattery.
 
-Return only a valid JSON object with keys: "stats" (array), "pathName" (string), "originStory" (string or null). No preamble, no markdown, no code fences.`;
+CRITICAL: Return ONLY a valid JSON object with keys: "stats" (array), "pathName" (string), "originStory" (string or null). No preamble, no explanation, no markdown, no code fences. Start your response with { and end with }.`;
 }
 
 function buildPromptEncounter(practiceName, lowestStatName) {
@@ -278,11 +354,11 @@ Their weakest stat is: ${lowestStatName}
 Generate a single named situation that tests this specific dimension.
 
 The situation must:
-- Have a name (2–4 words, like a scenario title)
-- Describe exactly what the situation looks like when it arrives (2–3 sentences, plain language)
-- Include an expert response — what the reasoning-layer practitioner does differently (2–3 sentences)
+- Have a name (2 to 4 words, like a scenario title)
+- Describe exactly what the situation looks like when it arrives (2 to 3 sentences, plain language)
+- Include an expert response — what the reasoning-layer practitioner does differently (2 to 3 sentences)
 
-Return only a valid JSON object with keys: "name" (string), "situation" (string), "expertResponse" (string). No preamble, no markdown, no code fences.`;
+CRITICAL: Return ONLY a valid JSON object with keys: "name" (string), "situation" (string), "expertResponse" (string). No preamble, no explanation, no markdown, no code fences. Start your response with { and end with }.`;
 }
 
 
@@ -299,7 +375,7 @@ function renderCards(containerId, cards, multiSelect) {
         el.dataset.index = i;
         el.dataset.name  = card.name;
         el.innerHTML = `
-            <span class="card-check">✓</span>
+            <span class="card-check">SEL</span>
             <div class="card-name">${escapeHtml(card.name)}</div>
             <div class="card-explanation">${escapeHtml(card.explanation)}</div>
         `;
@@ -458,17 +534,81 @@ document.getElementById("btn-begin").addEventListener("click", () => {
 
 document.getElementById("btn-cv-path").addEventListener("click", () => {
     state.onboardingPath = "cv";
-    showScreen("screen-api-key");
+    showScreen("screen-cv-paste");     // Input first
 });
 
 document.getElementById("btn-reimagine-path").addEventListener("click", () => {
     state.onboardingPath = "reimagine";
+    showScreen("screen-reimagine");    // Input first
+});
+
+
+/* ------------------------------------------------------------
+   CV PASTE → API KEY → GEMINI CALL 1
+   Flow: CV paste → Continue → API key screen → Validate & Analyse
+   ------------------------------------------------------------ */
+
+document.getElementById("btn-cv-next").addEventListener("click", () => {
+    const cvText = document.getElementById("input-cv").value.trim();
+    if (cvText.length < 80) {
+        alert("Please paste your full CV — the analysis needs enough text to work from.");
+        return;
+    }
+    state.rawInput.cvText = cvText;
     showScreen("screen-api-key");
 });
 
 
 /* ------------------------------------------------------------
-   API KEY VALIDATION
+   RE-IMAGINE QUESTION NAVIGATION
+   Flow: Q1–Q5 → Complete → API key screen → Validate & Analyse
+   ------------------------------------------------------------ */
+
+function updateReimagineUI() {
+    const q = state.reimagineCurrentQ;
+    document.getElementById("reimagine-q-num").textContent = q;
+    document.getElementById("btn-reimagine-back").style.visibility = q === 1 ? "hidden" : "visible";
+    document.getElementById("btn-reimagine-next").textContent = q === 5 ? "Continue" : "Next";
+}
+
+document.getElementById("btn-reimagine-next").addEventListener("click", () => {
+    const q     = state.reimagineCurrentQ;
+    const input = document.getElementById(`input-reimagine-${q}`).value.trim();
+
+    if (!input) {
+        alert("Please write something before continuing — even a short answer is fine.");
+        return;
+    }
+
+    if (q < 5) {
+        document.getElementById(`reimagine-q${q}`).classList.remove("active");
+        document.getElementById(`reimagine-q${q + 1}`).classList.add("active");
+        state.reimagineCurrentQ = q + 1;
+        updateReimagineUI();
+        return;
+    }
+
+    // All 5 answered — store and proceed to API key
+    const responses = [1, 2, 3, 4, 5].map(n =>
+        document.getElementById(`input-reimagine-${n}`).value.trim()
+    );
+    state.rawInput.reimagineResponses = responses;
+    showScreen("screen-api-key");
+});
+
+document.getElementById("btn-reimagine-back").addEventListener("click", () => {
+    const q = state.reimagineCurrentQ;
+    if (q > 1) {
+        document.getElementById(`reimagine-q${q}`).classList.remove("active");
+        document.getElementById(`reimagine-q${q - 1}`).classList.add("active");
+        state.reimagineCurrentQ = q - 1;
+        updateReimagineUI();
+    }
+});
+
+
+/* ------------------------------------------------------------
+   API KEY VALIDATION → DISPATCH TO ANALYSIS
    ------------------------------------------------------------ */
 
 document.getElementById("btn-validate-key").addEventListener("click", async () => {
@@ -488,9 +628,15 @@ document.getElementById("btn-validate-key").addEventListener("click", async () =
         await validateGeminiKey(key);
         state.geminiKey = key;
         setHint("api-key-hint", "Key validated.", "success");
+
+        // Dispatch based on which path collected input
         setTimeout(() => {
-            showScreen(state.onboardingPath === "cv" ? "screen-cv-paste" : "screen-reimagine");
-        }, 500);
+            if (state.onboardingPath === "cv") {
+                runCVAnalysis();
+            } else {
+                runReimagineAnalysis();
+            }
+        }, 400);
     } catch (err) {
         setHint("api-key-hint", "Key not recognised. Check it and try again.", "error");
         btn.disabled = false;
@@ -500,93 +646,48 @@ document.getElementById("btn-validate-key").addEventListener("click", async () =
 
 
 /* ------------------------------------------------------------
-   CV PASTE → GEMINI CALL 1
+   CV ANALYSIS — GEMINI CALL 1
    ------------------------------------------------------------ */
 
-document.getElementById("btn-analyse-cv").addEventListener("click", async () => {
-    const cvText = document.getElementById("input-cv").value.trim();
-    if (cvText.length < 100) {
-        alert("Please paste your full CV — the analysis needs enough text to work from.");
-        return;
-    }
-
-    state.rawInput.cvText = cvText;
-    document.getElementById("loading-1-label").textContent = "Reading your career history...";
+async function runCVAnalysis() {
+    document.getElementById("loading-1-label").textContent = "READING CAREER HISTORY...";
     showScreen("screen-loading-1");
 
     try {
-        const raw   = await callGemini(buildPromptCV(cvText));
+        const compressed = compressCV(state.rawInput.cvText);
+        const raw   = await callGemini(buildPromptCV(compressed), 8192);
         const cards = parseJsonResponse(raw);
         state.inference.cardsPresented = cards;
         renderCards("card-grid-1", cards, true);
         showScreen("screen-cards-1");
     } catch (err) {
         console.error("PATH: CV analysis failed —", err);
-        alert("Analysis failed. Check your API key and try again.\n\n" + err.message);
+        alert("Analysis failed — " + err.message + "\n\nPlease go back and try again.");
         showScreen("screen-cv-paste");
     }
-});
+}
 
 
 /* ------------------------------------------------------------
-   RE-IMAGINE QUESTION NAVIGATION
+   RE-IMAGINE ANALYSIS — GEMINI CALL 1
    ------------------------------------------------------------ */
 
-function updateReimagineUI() {
-    const q = state.reimagineCurrentQ;
-    document.getElementById("reimagine-q-num").textContent = q;
-    document.getElementById("btn-reimagine-back").style.visibility = q === 1 ? "hidden" : "visible";
-    document.getElementById("btn-reimagine-next").textContent = q === 5 ? "Analyse" : "Next";
-}
-
-document.getElementById("btn-reimagine-next").addEventListener("click", async () => {
-    const q     = state.reimagineCurrentQ;
-    const input = document.getElementById(`input-reimagine-${q}`).value.trim();
-
-    if (!input) {
-        alert("Please write something before continuing — even a short answer is fine.");
-        return;
-    }
-
-    if (q < 5) {
-        document.getElementById(`reimagine-q${q}`).classList.remove("active");
-        document.getElementById(`reimagine-q${q + 1}`).classList.add("active");
-        state.reimagineCurrentQ = q + 1;
-        updateReimagineUI();
-        return;
-    }
-
-    // All 5 answered — run analysis
-    const responses = [1, 2, 3, 4, 5].map(n =>
-        document.getElementById(`input-reimagine-${n}`).value.trim()
-    );
-    state.rawInput.reimagineResponses = responses;
-
-    document.getElementById("loading-1-label").textContent = "Finding what your experience is really telling us...";
+async function runReimagineAnalysis() {
+    document.getElementById("loading-1-label").textContent = "FINDING WHAT YOUR EXPERIENCE IS TELLING US...";
     showScreen("screen-loading-1");
 
     try {
-        const raw   = await callGemini(buildPromptReimagine(responses));
+        const raw   = await callGemini(buildPromptReimagine(state.rawInput.reimagineResponses), 8192);
         const cards = parseJsonResponse(raw);
         state.inference.cardsPresented = cards;
         renderCards("card-grid-1", cards, true);
         showScreen("screen-cards-1");
     } catch (err) {
         console.error("PATH: Re-imagine analysis failed —", err);
-        alert("Analysis failed. Check your API key and try again.\n\n" + err.message);
+        alert("Analysis failed — " + err.message + "\n\nPlease go back and try again.");
         showScreen("screen-reimagine");
     }
-});
-
-document.getElementById("btn-reimagine-back").addEventListener("click", () => {
-    const q = state.reimagineCurrentQ;
-    if (q > 1) {
-        document.getElementById(`reimagine-q${q}`).classList.remove("active");
-        document.getElementById(`reimagine-q${q - 1}`).classList.add("active");
-        state.reimagineCurrentQ = q - 1;
-        updateReimagineUI();
-    }
-});
+}
 
 
 /* ------------------------------------------------------------
@@ -613,10 +714,10 @@ document.getElementById("btn-cards-1-confirm").addEventListener("click", async (
 });
 
 async function runRound2(selectedNames) {
-    document.getElementById("loading-1-label").textContent = "Narrowing things down...";
+    document.getElementById("loading-1-label").textContent = "NARROWING DOWN...";
     showScreen("screen-loading-1");
     try {
-        const raw   = await callGemini(buildPromptReconcile(selectedNames));
+        const raw   = await callGemini(buildPromptReconcile(selectedNames), 4096);
         const cards = parseJsonResponse(raw);
         renderCards("card-grid-2", cards, false);
         showScreen("screen-cards-2");
@@ -649,15 +750,15 @@ document.getElementById("btn-cards-2-confirm").addEventListener("click", async (
    ------------------------------------------------------------ */
 
 async function generateCharacterSheet() {
-    document.getElementById("loading-2-label").textContent = "Building your character sheet...";
+    document.getElementById("loading-2-label").textContent = "BUILDING CHARACTER SHEET...";
     showScreen("screen-loading-2");
 
     try {
-        const raw  = await callGemini(buildPromptCharacterSheet(state.confirmedPractice, state.onboardingPath));
+        const raw  = await callGemini(buildPromptCharacterSheet(state.confirmedPractice, state.onboardingPath), 8192);
         const data = parseJsonResponse(raw);
 
-        state.pathName                = data.pathName;
-        state.statusScreen.stats      = data.stats;
+        state.pathName                 = data.pathName;
+        state.statusScreen.stats       = data.stats;
         state.statusScreen.originStory = data.originStory || null;
 
         document.getElementById("sheet-practice-name").textContent = state.confirmedPractice;
@@ -675,8 +776,8 @@ async function generateCharacterSheet() {
         // Confirmation footer differs by path
         document.getElementById("sheet-footer-note").textContent =
             state.onboardingPath === "reimagine"
-                ? "These reflect where you're starting from. They change as you play."
-                : "These reflect where you are now. They change as you play.";
+                ? "THESE REFLECT WHERE YOU ARE STARTING FROM. THEY CHANGE AS YOU PLAY."
+                : "THESE REFLECT WHERE YOU ARE NOW. THEY CHANGE AS YOU PLAY.";
 
         renderStats(data.stats);
         attachStaticTermTriggers();
@@ -694,7 +795,7 @@ async function generateCharacterSheet() {
    ------------------------------------------------------------ */
 
 document.getElementById("btn-sheet-confirm").addEventListener("click", () => {
-    state.statusScreen.confirmed  = true;
+    state.statusScreen.confirmed    = true;
     state.statusScreen.flaggedStats = [];
     state.confidence = calculateConfidence(state.inference.roundsToConverge, 0);
     generateEncounterPreview();
@@ -731,22 +832,22 @@ async function generateEncounterPreview() {
     const lowest = state.statusScreen.stats.find(s => s.isLowest)
         || state.statusScreen.stats[state.statusScreen.stats.length - 1];
 
-    document.getElementById("loading-2-label").textContent = "Generating your first encounter...";
+    document.getElementById("loading-2-label").textContent = "GENERATING FIRST ENCOUNTER...";
     showScreen("screen-loading-2");
 
     try {
-        const raw  = await callGemini(buildPromptEncounter(state.confirmedPractice, lowest.name));
+        const raw  = await callGemini(buildPromptEncounter(state.confirmedPractice, lowest.name), 4096);
         const data = parseJsonResponse(raw);
 
         state.encounter.name           = data.name;
         state.encounter.situation      = data.situation;
         state.encounter.expertResponse = data.expertResponse;
 
-        document.getElementById("encounter-name").textContent      = data.name;
-        document.getElementById("encounter-situation").textContent = data.situation;
+        document.getElementById("encounter-name").textContent       = data.name;
+        document.getElementById("encounter-situation").textContent  = data.situation;
         document.getElementById("expert-response-text").textContent = data.expertResponse;
 
-        // Reset encounter UI
+        // Reset encounter UI state
         document.getElementById("expert-response-block").classList.add("hidden");
         document.getElementById("encounter-actions-primary").classList.remove("hidden");
         document.getElementById("input-encounter-response").value = "";
@@ -755,7 +856,7 @@ async function generateEncounterPreview() {
         showScreen("screen-encounter");
     } catch (err) {
         console.error("PATH: Encounter generation failed —", err);
-        // Non-fatal — proceed to waitlist
+        // Non-fatal — skip to waitlist and still record session
         writeSessionToFirestore();
         showScreen("screen-waitlist");
     }
@@ -797,7 +898,7 @@ document.getElementById("btn-waitlist-submit").addEventListener("click", async (
     state.waitlistSignup = true;
     state.waitlistEmail  = email;
 
-    // Write full session first
+    // Write full session
     await writeSessionToFirestore();
 
     // Also write to dedicated waitlist collection for easy querying
@@ -825,7 +926,7 @@ document.getElementById("btn-waitlist-skip").addEventListener("click", () => {
     document.getElementById("waitlist-form").classList.add("hidden");
     document.getElementById("waitlist-confirmation").classList.remove("hidden");
     document.getElementById("waitlist-confirmation-text").textContent =
-        "Your character sheet has been recorded.";
+        "YOUR CHARACTER SHEET HAS BEEN RECORDED.";
 });
 
 
