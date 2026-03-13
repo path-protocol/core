@@ -12,11 +12,28 @@
 <body>
 
     <!-- ============================================================
-         SCREEN: BOOT SEQUENCE (auto-advances, shows once)
+         SCREEN: BOOT SEQUENCE
+         Types out line by line. Name input at end. Enter or tap to continue.
     ============================================================ -->
     <section id="screen-boot" class="screen active">
         <div class="screen-inner screen-inner--centered">
             <div class="boot-terminal" id="boot-terminal"></div>
+            <div class="boot-name-input hidden" id="boot-name-input">
+                <div class="boot-name-row">
+                    <span class="boot-name-prompt">OPERATIVE NAME: </span>
+                    <input
+                        type="text"
+                        id="input-operative-name"
+                        class="boot-name-field"
+                        placeholder="type your name..."
+                        autocomplete="off"
+                        spellcheck="false"
+                        maxlength="40"
+                    />
+                    <span class="boot-cursor" id="name-cursor">▊</span>
+                </div>
+                <div class="boot-continue-hint" id="boot-continue-hint"></div>
+            </div>
         </div>
     </section>
 
@@ -31,8 +48,8 @@
             <p class="landing-statement">
                 You found PATH. Or PATH found you.<br>Either way — you're here now.
             </p>
-            <p class="landing-sub">
-                B.L.O.C.K. filed you under an approved category.<br>
+            <p class="landing-sub" id="landing-block-line">
+                B.L.O.C.K. had you filed as <span class="landing-block-role" id="landing-block-role"></span>.<br>
                 Let's find out what you actually are.
             </p>
             <button class="btn btn--primary btn--large" id="btn-begin">[ INITIALISE ]</button>
@@ -141,7 +158,6 @@
 
     <!-- ============================================================
          SCREEN: NEURAL LINK INTERSTITIAL
-         Lore bridge between input collection and API key ask.
     ============================================================ -->
     <section id="screen-neural-link" class="screen">
         <div class="screen-inner screen-inner--centered">
@@ -183,20 +199,20 @@
                 <span class="loader-dot"></span>
                 <span class="loader-dot"></span>
                 <span class="loader-dot"></span>
-                <span class="loader-text">ESTABLISHING LINK...</span>
+                <span class="loader-text" id="api-key-loader-text">ESTABLISHING LINK...</span>
             </div>
         </div>
     </section>
 
 
     <!-- ============================================================
-         SCREEN: LOADING — Gemini Call 1 (role cards)
+         SCREEN: LOADING 1 — Role cards
     ============================================================ -->
     <section id="screen-loading-1" class="screen">
         <div class="screen-inner screen-inner--centered">
             <div class="loading-block">
                 <div class="loading-bar"><div class="loading-bar__fill"></div></div>
-                <p class="loading-label" id="loading-1-label">SCANNING CAREER RECORD...</p>
+                <p class="loading-label" id="loading-1-label"></p>
             </div>
         </div>
     </section>
@@ -260,13 +276,13 @@
 
 
     <!-- ============================================================
-         SCREEN: LOADING — Gemini Call 2 (character sheet)
+         SCREEN: LOADING 2 — Character sheet
     ============================================================ -->
     <section id="screen-loading-2" class="screen">
         <div class="screen-inner screen-inner--centered">
             <div class="loading-block">
                 <div class="loading-bar"><div class="loading-bar__fill"></div></div>
-                <p class="loading-label" id="loading-2-label">BUILDING CHARACTER SHEET...</p>
+                <p class="loading-label" id="loading-2-label"></p>
             </div>
         </div>
     </section>
@@ -297,7 +313,7 @@
 
             <p class="sheet-footer-note" id="sheet-footer-note">INITIAL SCAN COMPLETE. CALIBRATION PENDING.</p>
 
-            <div class="screen-actions">
+            <div class="screen-actions" id="sheet-actions">
                 <button class="btn btn--primary" id="btn-sheet-confirm">This is accurate</button>
                 <button class="btn btn--ghost" id="btn-sheet-flag">Some of this is off — recalibrate</button>
             </div>
@@ -313,9 +329,7 @@
         <div class="screen-inner screen-inner--narrow">
             <div class="screen-sys-label">RECALIBRATION // FLAGGING</div>
             <h2 class="screen-heading">Which stats are off?</h2>
-            <p class="screen-body">
-                Mark what doesn't match. PATH will run a deeper probe on each flagged stat.
-            </p>
+            <p class="screen-body">Mark what doesn't match. PATH will run a deeper probe on each flagged stat.</p>
             <div class="flag-list" id="flag-list"></div>
             <div class="screen-actions">
                 <button class="btn btn--primary" id="btn-flag-confirm">Run deep probe</button>
@@ -357,33 +371,45 @@
 
 
     <!-- ============================================================
-         SCREEN: LOADING — Gemini Call 3 (recalibration)
+         SCREEN: LOADING 3 — Probe / recalibration
     ============================================================ -->
     <section id="screen-loading-3" class="screen">
         <div class="screen-inner screen-inner--centered">
             <div class="loading-block">
                 <div class="loading-bar"><div class="loading-bar__fill"></div></div>
-                <p class="loading-label">RECALIBRATING CHARACTER SHEET...</p>
+                <p class="loading-label" id="loading-3-label"></p>
             </div>
         </div>
     </section>
 
 
     <!-- ============================================================
-         SCREEN: LOADING — Gemini Call 4 (encounter)
+         SCREEN: ENCOUNTER INTRO
+         PATH explains the test directive before showing the scenario.
+    ============================================================ -->
+    <section id="screen-encounter-intro" class="screen">
+        <div class="screen-inner screen-inner--centered">
+            <div class="boot-terminal" id="encounter-intro-terminal"></div>
+            <button class="btn btn--primary btn--large hidden" id="btn-encounter-intro-accept">[ ACCEPT DIRECTIVE ]</button>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN: LOADING 4 — Encounter generation
     ============================================================ -->
     <section id="screen-loading-4" class="screen">
         <div class="screen-inner screen-inner--centered">
             <div class="loading-block">
                 <div class="loading-bar"><div class="loading-bar__fill"></div></div>
-                <p class="loading-label">GENERATING FIRST ENCOUNTER...</p>
+                <p class="loading-label" id="loading-4-label"></p>
             </div>
         </div>
     </section>
 
 
     <!-- ============================================================
-         SCREEN: ENCOUNTER PREVIEW
+         SCREEN: ENCOUNTER — user responds to the scenario
     ============================================================ -->
     <section id="screen-encounter" class="screen">
         <div class="screen-inner screen-inner--narrow">
@@ -391,74 +417,163 @@
             <div class="encounter-eyebrow">
                 <span class="term" data-term="encounter">ENCOUNTER</span>
                 <span class="encounter-eyebrow__sep">—</span>
-                <span class="encounter-eyebrow__sub">PREVIEW</span>
+                <span class="encounter-eyebrow__label" id="encounter-stat-label"></span>
             </div>
 
             <h2 class="encounter-name" id="encounter-name"></h2>
             <p class="encounter-situation" id="encounter-situation"></p>
 
             <div class="encounter-prompt">
-                <p class="encounter-prompt__label">WHAT WOULD YOU DO HERE?</p>
+                <p class="encounter-prompt__label">YOUR RESPONSE</p>
                 <textarea
                     id="input-encounter-response"
                     class="field-input field-input--medium"
-                    placeholder="Write your response, or skip to see the expert call..."
+                    placeholder="Describe what you would do. Be specific — PATH is watching how you think, not just what you say."
                     spellcheck="true"
                 ></textarea>
             </div>
 
-            <div class="screen-actions" id="encounter-actions-primary">
-                <button class="btn btn--primary" id="btn-reveal-expert">See the expert response</button>
-                <button class="btn btn--ghost" id="btn-encounter-skip">Skip</button>
+            <div class="screen-actions">
+                <button class="btn btn--primary" id="btn-encounter-submit">Submit response</button>
+                <button class="btn btn--ghost" id="btn-encounter-skip">Skip — show me the expert approach</button>
             </div>
-
-            <div class="expert-response hidden" id="expert-response-block">
-                <div class="expert-response__label">EXPERT RESPONSE</div>
-                <p class="expert-response__text" id="expert-response-text"></p>
-                <div class="screen-actions">
-                    <button class="btn btn--primary" id="btn-encounter-continue">Continue</button>
-                </div>
-            </div>
-
-            <p class="encounter-footer">B.L.O.C.K. never got this far with you.</p>
 
         </div>
     </section>
 
 
     <!-- ============================================================
-         SCREEN: WAITLIST
+         SCREEN: LOADING 5 — Encounter review
     ============================================================ -->
-    <section id="screen-waitlist" class="screen">
+    <section id="screen-loading-5" class="screen">
         <div class="screen-inner screen-inner--centered">
-            <div class="screen-sys-label">SESSION COMPLETE // TRANSMISSION SECURED</div>
-            <div class="waitlist-heading">Your Path is mapped.</div>
-            <p class="screen-body screen-body--centered">
-                The full system — Encounters, Known Opponents, Rank progression, Ability unlock — is coming.
-                Leave your signal address and PATH will find you when it's ready.
-            </p>
-
-            <div id="waitlist-form">
-                <div class="field-group field-group--inline">
-                    <input
-                        type="email"
-                        id="input-waitlist-email"
-                        class="field-input"
-                        placeholder="your@email.com"
-                        autocomplete="email"
-                    />
-                    <button class="btn btn--primary" id="btn-waitlist-submit">[ REGISTER SIGNAL ]</button>
-                </div>
-                <button class="btn btn--ghost btn--small" id="btn-waitlist-skip">Decline</button>
-            </div>
-
-            <div class="waitlist-confirmation hidden" id="waitlist-confirmation">
-                <p class="waitlist-confirmation__text" id="waitlist-confirmation-text">
-                    SIGNAL REGISTERED. PATH WILL FIND YOU.
-                </p>
+            <div class="loading-block">
+                <div class="loading-bar"><div class="loading-bar__fill"></div></div>
+                <p class="loading-label" id="loading-5-label"></p>
             </div>
         </div>
     </section>
+
+
+    <!-- ============================================================
+         SCREEN: ENCOUNTER REVIEW
+         PATH's verdict on the user's answer, then the expert response.
+         Then stat update. Then continue to status.
+    ============================================================ -->
+    <section id="screen-encounter-review" class="screen">
+        <div class="screen-inner screen-inner--narrow">
+
+            <div class="screen-sys-label">DIRECTIVE REVIEW // COMPLETE</div>
+
+            <!-- PATH verdict on their answer -->
+            <div class="verdict-block" id="verdict-block">
+                <div class="verdict-block__label" id="verdict-label"></div>
+                <p class="verdict-acknowledgement" id="verdict-acknowledgement"></p>
+                <p class="verdict-gap" id="verdict-gap"></p>
+                <p class="verdict-forward" id="verdict-forward"></p>
+            </div>
+
+            <!-- Expert response, contextualised to their answer -->
+            <div class="expert-block" id="expert-block">
+                <div class="expert-block__label">EXPERT APPROACH</div>
+                <p class="expert-block__text" id="expert-block-text"></p>
+            </div>
+
+            <!-- Stat update — shown last after content lands -->
+            <div class="stat-update-block hidden" id="stat-update-block">
+                <div class="stat-update-block__label">STAT UPDATE</div>
+                <div class="stat-update-row" id="stat-update-row"></div>
+            </div>
+
+            <div class="screen-actions">
+                <button class="btn btn--primary" id="btn-review-continue">[ VIEW STATUS REPORT ]</button>
+            </div>
+
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN: LOADING 6 — Status generation
+    ============================================================ -->
+    <section id="screen-loading-6" class="screen">
+        <div class="screen-inner screen-inner--centered">
+            <div class="loading-block">
+                <div class="loading-bar"><div class="loading-bar__fill"></div></div>
+                <p class="loading-label" id="loading-6-label"></p>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN: STATUS REPORT
+         The reward screen. Universal career stats + role skills + rank.
+    ============================================================ -->
+    <section id="screen-status" class="screen">
+        <div class="screen-inner screen-inner--narrow">
+
+            <!-- Rank header -->
+            <div class="status-rank-header">
+                <div class="status-codename" id="status-codename"></div>
+                <div class="status-name" id="status-name"></div>
+                <div class="status-role" id="status-role"></div>
+                <div class="status-seniority" id="status-seniority"></div>
+            </div>
+
+            <!-- Universal career stats with numeric values + bars -->
+            <div class="status-section-label">CAREER STATS</div>
+            <div class="universal-stats" id="universal-stats"></div>
+
+            <!-- Role-specific skill breakdown -->
+            <div class="status-section-label">SKILL BREAKDOWN // <span id="status-domain-label"></span></div>
+            <div class="stat-list" id="status-skill-list"></div>
+
+            <!-- Origin signal for Track B -->
+            <div class="origin-story hidden" id="status-origin-block">
+                <div class="origin-story__label">ORIGIN SIGNAL</div>
+                <p class="origin-story__text" id="status-origin-text"></p>
+            </div>
+
+            <p class="sheet-footer-note">FULL PATH UNLOCKS WHEN THE SYSTEM LAUNCHES.</p>
+
+            <!-- Email capture -->
+            <div class="status-email-block">
+                <div class="status-email-label">REGISTER YOUR SIGNAL ADDRESS</div>
+                <p class="status-email-sub">The full system — Encounters, Rank progression, Known Opponents, Ability unlock — is coming. Leave your email and PATH finds you when it's ready.</p>
+                <div id="status-waitlist-form">
+                    <div class="field-group field-group--inline">
+                        <input
+                            type="email"
+                            id="input-status-email"
+                            class="field-input"
+                            placeholder="your@email.com"
+                            autocomplete="email"
+                        />
+                        <button class="btn btn--primary" id="btn-status-email-submit">[ REGISTER ]</button>
+                    </div>
+                    <button class="btn btn--ghost btn--small" id="btn-status-email-skip">Decline</button>
+                </div>
+                <div class="waitlist-confirmation hidden" id="status-waitlist-confirmation">
+                    <p class="waitlist-confirmation__text" id="status-confirmation-text">SIGNAL REGISTERED. PATH WILL FIND YOU.</p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         PATH MODAL — replaces all browser alerts
+    ============================================================ -->
+    <div class="path-modal hidden" id="path-modal">
+        <div class="path-modal__panel">
+            <div class="path-modal__sys-label" id="modal-sys-label">SYSTEM MESSAGE</div>
+            <p class="path-modal__body" id="modal-body"></p>
+            <button class="btn btn--primary" id="modal-confirm-btn">Continue</button>
+            <button class="btn btn--ghost hidden" id="modal-secondary-btn">Secondary</button>
+        </div>
+    </div>
 
 
     <!-- ============================================================
@@ -471,6 +586,7 @@
             <p class="tooltip-body" id="tooltip-body"></p>
         </div>
     </div>
+
 
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
