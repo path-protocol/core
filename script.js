@@ -3,7 +3,9 @@
    Vanilla JS. No frameworks. No bundlers.
    4-space indentation. British English comments.
 
-   Gemini model: gemini-2.5-flash (all calls)
+   Gemini model routing:
+     Flash-Lite — cards R1/R2/R3, probe rounds, recalibration (classification tasks)
+     Flash      — character sheet, encounter, review, status (reasoning-heavy tasks)
    Firebase project: path-protocol
 
    Flow:
@@ -32,8 +34,9 @@ const FIREBASE_CONFIG = {
     appId:             "1:808785928819:web:80c912f0d06c9aa86f4006"
 };
 
-const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-const GEMINI_MODEL    = "gemini-2.5-flash";
+const GEMINI_API_BASE  = "https://generativelanguage.googleapis.com/v1beta/models";
+const GEMINI_MODEL     = "gemini-2.5-flash";       // reasoning-heavy calls
+const GEMINI_MODEL_LITE = "gemini-2.5-flash-lite"; // classification / narrowing calls
 
 let db = null;
 
@@ -62,8 +65,9 @@ async function writeSession() {
             probeResponses:    state.probeResponses,
             encounterResponse: state.encounterResponse,
             encounterVerdict:  state.encounterVerdict,
-            universalStats:    state.universalStats,
-            rank:              state.rank,
+            universalStats:        state.universalStats,
+            underlyingDimensions:  state.underlyingDimensions,
+            rank:                  state.rank,
             waitlistSignup:    state.waitlistSignup,
             waitlistEmail:     state.waitlistEmail,
             offlineMode:       state.offlineMode,
@@ -117,8 +121,9 @@ const state = {
     encounterResponse: null,
     encounterVerdict:  null,
 
-    universalStats: null,    // { execution, judgement, communication, domainDepth, adaptability }
-    rank:           null,    // { seniority, codename }
+    universalStats: null,         // { intelligence, strength, charisma, dexterity } — shown to user
+    underlyingDimensions: null,   // { judgement, will, influence, resilience } — stored for calibration, never shown
+    rank:           null,         // { seniority, codename }
 
     waitlistSignup: false,
     waitlistEmail:  null,
@@ -451,6 +456,28 @@ async function callGemini(prompt, maxTokens) {
     return text;
 }
 
+// Flash-Lite — used for classification and narrowing calls (cards R1–R3, probe, recalibrate)
+// Same key, different model string. Preserves Flash quota for reasoning-heavy calls.
+async function callGeminiLite(prompt, maxTokens) {
+    const url = `${GEMINI_API_BASE}/${GEMINI_MODEL_LITE}:generateContent?key=${state.geminiKey}`;
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: maxTokens || 4096 }
+        })
+    });
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error?.message || `Gemini Lite error ${response.status}`);
+    }
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    if (!text) throw new Error(`No text from Lite. Finish reason: ${data.candidates?.[0]?.finishReason || "unknown"}`);
+    return text;
+}
+
 async function validateGeminiKey(key) {
     const url = `${GEMINI_API_BASE}/${GEMINI_MODEL}:generateContent?key=${key}`;
     const response = await fetch(url, {
@@ -663,30 +690,43 @@ CRITICAL: Return ONLY valid JSON: {"verdictLabel":"...","acknowledgement":"...",
 }
 
 function promptStatus(roleName, path, stats, universalContext) {
-    return `Generate a final status report for an operative. This is their career profile reward — make it honest, specific, and useful.
+    return `Generate a final status report for an operative. Honest, specific, evidence-based.
 
 Role: ${roleName}
 Path: ${pTrack(path)}
 Role-specific stats: ${stats.map(s=>`${s.name}: ${s.level}`).join(", ")}
 Additional context: ${universalContext}
 
-Generate:
+Step 1 — Score the four underlying career dimensions (0–100 each). Be honest, not flattering.
+- "judgement":  ability to read situations and make correct calls with incomplete information
+- "will":       conscientiousness, drive to deliver, follow-through under pressure
+- "influence":  social effectiveness, communication, ability to create alignment
+- "resilience": emotional stability, adaptability, performance under change and failure
 
-1. Five universal career stat scores (0–100). Be honest — not flattery. These should reflect the evidence from the session.
-   - "execution": ability to deliver outcomes, hit deadlines, close work
-   - "judgement": ability to read situations and make calls with incomplete information
-   - "communication": ability to move information and create alignment across stakeholders
-   - "domainDepth": depth of specific knowledge in their field
-   - "adaptability": ability to perform under change, ambiguity, and unfamiliar territory
+Step 2 — Derive the four RPG stat scores using these exact weights:
+- "intelligence" = round((judgement * 0.75) + (influence * 0.25))
+- "strength"     = round((will * 0.60) + (resilience * 0.40))
+- "charisma"     = round((influence * 0.70) + (resilience * 0.30))
+- "dexterity"    = round((resilience * 0.65) + (will * 0.35))
 
-2. Seniority tier for this role. Choose the most accurate from: Junior / Associate / Mid-Level / Senior / Lead / Principal / Head
-   - "seniority": the tier
+Step 3 — Assign seniority tier. Choose the most accurate from:
+Junior / Mid-Level / Senior / Lead / Principal
 
-3. PATH codename — a 1–2 word title that captures how PATH sees this person's operating style. Something that would feel earned. Examples: "The Architect", "The Operator", "The Catalyst", "The Navigator", "The Analyst", "The Builder"
-   - "codename": the codename with "The" prefix
+Step 4 — Assign a PATH codename. A 1–2 word title capturing this person's operating style. Must feel earned. Examples: "The Architect", "The Operator", "The Catalyst", "The Navigator", "The Analyst", "The Builder"
 
-CRITICAL: Return ONLY valid JSON:
-{"execution":0,"judgement":0,"communication":0,"domainDepth":0,"adaptability":0,"seniority":"...","codename":"..."}
+CRITICAL: Return ONLY valid JSON with ALL of these fields:
+{
+  "judgement": 0,
+  "will": 0,
+  "influence": 0,
+  "resilience": 0,
+  "intelligence": 0,
+  "strength": 0,
+  "charisma": 0,
+  "dexterity": 0,
+  "seniority": "...",
+  "codename": "..."
+}
 Start with { end with }.`;
 }
 
@@ -886,26 +926,28 @@ function offlineFallbackEncounter(roleName) {
 }
 
 function offlineFallbackStatus(stats, seniority, selfAssessment) {
-    // Self-assessment: "matched" | "partial" | "missed"
-    // Derive numeric scores from stat levels + self-assessment
+    // Derive underlying dimension estimates from stat levels + self-assessment
     const levelScore = { Early: 30, Developing: 48, Solid: 68, Advanced: 85 };
-    const avgLevel = stats.reduce((a, s) => a + (levelScore[s.level] || 48), 0) / stats.length;
+    const avg        = stats.reduce((a, s) => a + (levelScore[s.level] || 48), 0) / stats.length;
+    const bonus      = { matched: 8, partial: 0, missed: -6 }[selfAssessment] || 0;
+    const jitter     = () => Math.round((Math.random() * 10) - 4);
 
-    const selfBonus = { matched: 8, partial: 0, missed: -6 };
-    const bonus = selfBonus[selfAssessment] || 0;
+    // Underlying dimensions (stored for calibration — not shown to user)
+    const judgement  = Math.min(99, Math.max(1, Math.round(avg + bonus - 3 + jitter())));
+    const will       = Math.min(99, Math.max(1, Math.round(avg + bonus + 2 + jitter())));
+    const influence  = Math.min(99, Math.max(1, Math.round(avg + bonus + 1 + jitter())));
+    const resilience = Math.min(99, Math.max(1, Math.round(avg + bonus - 2 + jitter())));
 
-    const scores = {
-        execution:     Math.min(99, Math.round(avgLevel + bonus + (Math.random()*8 - 4))),
-        judgement:     Math.min(99, Math.round(avgLevel + bonus - 5 + (Math.random()*10))),
-        communication: Math.min(99, Math.round(avgLevel + bonus + 3 + (Math.random()*8 - 4))),
-        domainDepth:   Math.min(99, Math.round(avgLevel + bonus + (Math.random()*8 - 4))),
-        adaptability:  Math.min(99, Math.round(avgLevel + bonus - 3 + (Math.random()*10)))
-    };
+    // Derive RPG stats using the same weighted formula as the prompt instructs Gemini to use
+    const intelligence = Math.min(99, Math.round((judgement * 0.75) + (influence  * 0.25)));
+    const strength     = Math.min(99, Math.round((will      * 0.60) + (resilience * 0.40)));
+    const charisma     = Math.min(99, Math.round((influence * 0.70) + (resilience * 0.30)));
+    const dexterity    = Math.min(99, Math.round((resilience * 0.65) + (will      * 0.35)));
 
     const codeNames = ["The Operator","The Navigator","The Analyst","The Catalyst","The Builder","The Architect","The Investigator","The Strategist"];
     const codename  = codeNames[Math.floor(Math.random() * codeNames.length)];
 
-    return { ...scores, seniority: seniority || "Mid-Level", codename };
+    return { judgement, will, influence, resilience, intelligence, strength, charisma, dexterity, seniority: seniority || "Mid-Level", codename };
 }
 
 function showOfflineInterruption(onContinue) {
@@ -1027,7 +1069,7 @@ async function runCVAnalysis() {
     showLoading("screen-loading-1", "loading-1-label", "SCANNING CAREER RECORD");
     try {
         const compressed = compressCV(state.rawInput.cvText);
-        const raw   = await callGemini(promptCardsR1CV(compressed), 8192);
+        const raw   = await callGeminiLite(promptCardsR1CV(compressed), 8192);
         stopLoadingLabel("loading-1-label");
         const cards = parseJson(raw);
         state.inference.cardsR1Presented = cards;
@@ -1049,7 +1091,7 @@ async function runCVAnalysis() {
 async function runReimagineAnalysis() {
     showLoading("screen-loading-1", "loading-1-label", "MAPPING SIGNAL");
     try {
-        const raw   = await callGemini(promptCardsR1Reimagine(state.rawInput.reimagineResponses), 8192);
+        const raw   = await callGeminiLite(promptCardsR1Reimagine(state.rawInput.reimagineResponses), 8192);
         stopLoadingLabel("loading-1-label");
         const cards = parseJson(raw);
         state.inference.cardsR1Presented = cards;
@@ -1078,7 +1120,7 @@ document.getElementById("btn-cards-1-confirm").addEventListener("click", async (
 
     showLoading("screen-loading-1", "loading-1-label", "NARROWING SIGNAL");
     try {
-        const raw   = await callGemini(promptCardsR2(selected, state.onboardingPath, state.userContext), 4096);
+        const raw   = await callGeminiLite(promptCardsR2(selected, state.onboardingPath, state.userContext), 4096);
         stopLoadingLabel("loading-1-label");
         const cards = parseJson(raw);
         state.inference.cardsR2Presented = cards;
@@ -1105,7 +1147,7 @@ document.getElementById("btn-cards-2-confirm").addEventListener("click", async (
 
     showLoading("screen-loading-1", "loading-1-label", "ISOLATING FREQUENCY");
     try {
-        const raw   = await callGemini(promptCardsR3(selected, state.onboardingPath, state.userContext), 4096);
+        const raw   = await callGeminiLite(promptCardsR3(selected, state.onboardingPath, state.userContext), 4096);
         stopLoadingLabel("loading-1-label");
         const cards = parseJson(raw);
         state.inference.cardsR3Presented = cards;
@@ -1218,7 +1260,7 @@ document.getElementById("btn-flag-confirm").addEventListener("click", async () =
 
     showLoading("screen-loading-3", "loading-3-label", "PREPARING DEEP PROBE");
     try {
-        const raw = await callGemini(promptProbeRound(state.confirmedRole, flagged, 1, []), 4096);
+        const raw = await callGeminiLite(promptProbeRound(state.confirmedRole, flagged, 1, []), 4096);
         stopLoadingLabel("loading-3-label");
         probeR1Questions = parseJson(raw);
         renderProbeQuestions("probe-questions-1", probeR1Questions);
@@ -1236,7 +1278,7 @@ document.getElementById("btn-probe-1-confirm").addEventListener("click", async (
 
     showLoading("screen-loading-3", "loading-3-label", "RUNNING SECOND PROBE");
     try {
-        const raw = await callGemini(promptProbeRound(state.confirmedRole, state.statusScreen.flaggedStats, 2, answers.map(a=>a.answer)), 4096);
+        const raw = await callGeminiLite(promptProbeRound(state.confirmedRole, state.statusScreen.flaggedStats, 2, answers.map(a=>a.answer)), 4096);
         stopLoadingLabel("loading-3-label");
         probeR2Questions = parseJson(raw);
         renderProbeQuestions("probe-questions-2", probeR2Questions);
@@ -1254,7 +1296,7 @@ document.getElementById("btn-probe-2-confirm").addEventListener("click", async (
 
     showLoading("screen-loading-3", "loading-3-label", "RECALIBRATING CHARACTER SHEET");
     try {
-        const raw = await callGemini(promptRecalibrate(state.confirmedRole, state.onboardingPath, state.statusScreen.stats, state.probeResponses), 4096);
+        const raw = await callGeminiLite(promptRecalibrate(state.confirmedRole, state.onboardingPath, state.statusScreen.stats, state.probeResponses), 4096);
         stopLoadingLabel("loading-3-label");
         const updated = parseJson(raw);
         state.statusScreen.stats = state.statusScreen.stats.map(orig => {
@@ -1464,7 +1506,24 @@ async function generateStatus() {
         const raw  = await callGemini(promptStatus(state.confirmedRole, state.onboardingPath, state.statusScreen.stats, universalContext), 4096);
         stopLoadingLabel("loading-6-label");
         const data = parseJson(raw);
-        state.universalStats = data;
+
+        // Store underlying dimensions separately — used for calibration dataset (PRD Section 19)
+        // Never shown to the user. Must not be removed or collapsed into universalStats.
+        state.underlyingDimensions = {
+            judgement:  data.judgement  || 0,
+            will:       data.will       || 0,
+            influence:  data.influence  || 0,
+            resilience: data.resilience || 0
+        };
+
+        // Store only the four derived RPG stats visible to the user
+        state.universalStats = {
+            intelligence: data.intelligence || 0,
+            strength:     data.strength     || 0,
+            charisma:     data.charisma     || 0,
+            dexterity:    data.dexterity    || 0
+        };
+
         state.rank = { seniority: data.seniority, codename: data.codename };
         renderStatus(data);
     } catch (err) {
@@ -1475,7 +1534,18 @@ async function generateStatus() {
                              : state.encounterVerdict?.verdictLabel === "PARTIAL SIGNAL"   ? "partial"
                              : "missed";
             const data = offlineFallbackStatus(state.statusScreen.stats, seniority, selfAssess);
-            state.universalStats = data;
+            state.underlyingDimensions = {
+                judgement:  data.judgement  || 0,
+                will:       data.will       || 0,
+                influence:  data.influence  || 0,
+                resilience: data.resilience || 0
+            };
+            state.universalStats = {
+                intelligence: data.intelligence || 0,
+                strength:     data.strength     || 0,
+                charisma:     data.charisma     || 0,
+                dexterity:    data.dexterity    || 0
+            };
             state.rank = { seniority: data.seniority, codename: data.codename };
             renderStatus(data);
         });
@@ -1484,37 +1554,60 @@ async function generateStatus() {
 
 function renderStatus(data) {
     // Rank header
-    document.getElementById("status-codename").textContent  = `[ ${data.codename} ]`;
-    document.getElementById("status-name").textContent      = (state.operativeName || "OPERATIVE").toUpperCase();
-    document.getElementById("status-role").textContent      = state.confirmedRole;
-    document.getElementById("status-seniority").textContent = data.seniority.toUpperCase();
+    document.getElementById("status-codename").textContent     = `[ ${data.codename} ]`;
+    document.getElementById("status-name").textContent         = (state.operativeName || "OPERATIVE").toUpperCase();
+    document.getElementById("status-role").textContent         = state.confirmedRole;
+    document.getElementById("status-seniority").textContent    = data.seniority.toUpperCase();
     document.getElementById("status-domain-label").textContent = state.pathName || state.confirmedRole;
 
-    // Universal career stats
+    // Four RPG stats — tappable with tooltip explaining career dimension weights
     const universalContainer = document.getElementById("universal-stats");
     universalContainer.innerHTML = "";
 
-    const statDefs = [
-        { key: "execution",     label: "EXECUTION" },
-        { key: "judgement",     label: "JUDGEMENT" },
-        { key: "communication", label: "COMMUNICATION" },
-        { key: "domainDepth",   label: "DOMAIN DEPTH" },
-        { key: "adaptability",  label: "ADAPTABILITY" }
+    const RPG_STATS = [
+        {
+            key:     "intelligence",
+            label:   "INTELLIGENCE",
+            tooltip: "How sharply you read situations and make the right call. Built from Judgement (75%) — your ability to decide well under pressure — and Influence (25%) — understanding people well enough to know what's actually going on."
+        },
+        {
+            key:     "strength",
+            label:   "STRENGTH",
+            tooltip: "How much you actually deliver. Built from Will (60%) — your drive to finish what you start and hit your targets — and Resilience (40%) — your ability to keep delivering even when things get hard."
+        },
+        {
+            key:     "charisma",
+            label:   "CHARISMA",
+            tooltip: "How well you move people. Built from Influence (70%) — your ability to create alignment, persuade, and communicate clearly — and Resilience (30%) — staying composed under social pressure so your message lands the way you intend."
+        },
+        {
+            key:     "dexterity",
+            label:   "DEXTERITY",
+            tooltip: "How well you adapt and respond. Built from Resilience (65%) — your ability to stay functional when the situation changes — and Will (35%) — the drive to keep moving forward even in unfamiliar territory."
+        }
     ];
 
-    statDefs.forEach(({ key, label }) => {
-        const value = data[key] || 0;
+    RPG_STATS.forEach(({ key, label, tooltip }) => {
+        const value       = data[key] || 0;
         const colourClass = value >= 75 ? "high" : value >= 55 ? "good" : value >= 35 ? "mid" : "low";
 
         const row = document.createElement("div");
         row.className = "u-stat";
-        row.innerHTML = `
-            <span class="u-stat__name">${label}</span>
+
+        // Stat name is tappable — reveals tooltip explaining what feeds into it
+        const nameEl = document.createElement("span");
+        nameEl.className   = "u-stat__name term";
+        nameEl.textContent = label;
+        nameEl.addEventListener("click", () => showTooltip(label, tooltip));
+
+        row.appendChild(nameEl);
+        row.insertAdjacentHTML("beforeend", `
             <div class="u-stat__bar">
                 <div class="u-stat__bar-fill ${colourClass}" data-value="${value}" style="width:0%"></div>
             </div>
             <span class="u-stat__value">${value}</span>
-        `;
+        `);
+
         universalContainer.appendChild(row);
     });
 
