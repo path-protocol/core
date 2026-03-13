@@ -1,19 +1,20 @@
 /* ============================================================
    PATH — script.js
-   Complete MVP logic.
    Vanilla JS. No frameworks. No bundlers.
    4-space indentation. British English comments.
 
-   Gemini model: gemini-2.5-flash (all calls — confirmed stable March 2026)
-   CV input is compressed before sending to keep prompt tokens low
-   and ensure the JSON response is never truncated.
-
+   Gemini model: gemini-2.5-flash (all calls)
    Firebase project: path-protocol
+
+   Flow summary:
+     Boot → Landing → Path Select →
+     [Track A] CV Paste → Neural Link → API Key → Cards R1→R2→R3 → Sheet → [Probe if flagged] → Encounter → Waitlist
+     [Track B] 3 Questions → Neural Link → API Key → Cards R1→R2→R3 → Sheet → [Probe if flagged] → Encounter → Waitlist
    ============================================================ */
 
 
 /* ------------------------------------------------------------
-   FIREBASE CONFIGURATION
+   FIREBASE
    ------------------------------------------------------------ */
 
 const FIREBASE_CONFIG = {
@@ -28,59 +29,6 @@ const FIREBASE_CONFIG = {
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const GEMINI_MODEL    = "gemini-2.5-flash";
 
-
-/* ------------------------------------------------------------
-   APPLICATION STATE
-   ------------------------------------------------------------ */
-
-const state = {
-    sessionId:         null,
-    onboardingPath:    null,   // "cv" | "reimagine"
-    geminiKey:         null,
-
-    rawInput: {
-        cvText:             null,
-        reimagineResponses: null
-    },
-
-    inference: {
-        cardsPresented:      [],
-        cardsSelectedRound1: [],
-        cardsSelectedRound2: null,
-        roundsToConverge:    0
-    },
-
-    confirmedPractice: null,
-    pathName:          null,
-    confidence:        null,   // "low" | "medium" | "high"
-
-    statusScreen: {
-        stats:        [],
-        confirmed:    false,
-        flaggedStats: [],
-        originStory:  null
-    },
-
-    encounter: {
-        name:           null,
-        situation:      null,
-        expertResponse: null
-    },
-
-    situationEngaged:  false,
-    waitlistSignup:    false,
-    waitlistEmail:     null,
-    userContext:       null,   // Free-text from card screens — fed into all downstream prompts
-
-    // Internal flow tracking
-    reimagineCurrentQ: 1
-};
-
-
-/* ------------------------------------------------------------
-   FIREBASE INITIALISATION
-   ------------------------------------------------------------ */
-
 let db = null;
 
 function initFirebase() {
@@ -92,40 +40,74 @@ function initFirebase() {
     }
 }
 
-async function writeSessionToFirestore() {
+async function writeSession() {
     if (!db) return;
     try {
         await db.collection("sessions").doc(state.sessionId).set({
             sessionId:        state.sessionId,
             onboardingPath:   state.onboardingPath,
-            rawInput: {
-                cvText:             state.rawInput.cvText,
-                reimagineResponses: state.rawInput.reimagineResponses
-            },
-            inference: {
-                cardsPresented:      state.inference.cardsPresented,
-                cardsSelectedRound1: state.inference.cardsSelectedRound1,
-                cardsSelectedRound2: state.inference.cardsSelectedRound2,
-                roundsToConverge:    state.inference.roundsToConverge
-            },
-            confirmedPractice: state.confirmedPractice,
-            pathName:          state.pathName,
-            confidence:        state.confidence,
-            statusScreen: {
-                stats:        state.statusScreen.stats,
-                confirmed:    state.statusScreen.confirmed,
-                flaggedStats: state.statusScreen.flaggedStats,
-                originStory:  state.statusScreen.originStory
-            },
+            rawInput:         state.rawInput,
+            inference:        state.inference,
+            confirmedRole:    state.confirmedRole,
+            pathName:         state.pathName,
+            confidence:       state.confidence,
+            statusScreen:     state.statusScreen,
+            probeResponses:   state.probeResponses,
             situationEngaged: state.situationEngaged,
             waitlistSignup:   state.waitlistSignup,
             waitlistEmail:    state.waitlistEmail,
             createdAt:        firebase.firestore.FieldValue.serverTimestamp()
         });
     } catch (err) {
-        console.warn("PATH: Firestore session write failed —", err.message);
+        console.warn("PATH: Firestore write failed —", err.message);
     }
 }
+
+
+/* ------------------------------------------------------------
+   STATE
+   ------------------------------------------------------------ */
+
+const state = {
+    sessionId:       null,
+    onboardingPath:  null,    // "cv" | "reimagine"
+    geminiKey:       null,
+    userContext:     null,    // Free-text from Round 3 card screen
+
+    rawInput: {
+        cvText:             null,
+        reimagineResponses: null
+    },
+
+    inference: {
+        cardsR1Presented:  [],
+        cardsR1Selected:   [],
+        cardsR2Presented:  [],
+        cardsR2Selected:   [],
+        cardsR3Presented:  [],
+        cardsR3Selected:   null,
+        roundsToConverge:  3
+    },
+
+    confirmedRole:   null,
+    pathName:        null,
+    confidence:      null,
+
+    statusScreen: {
+        stats:        [],
+        confirmed:    false,
+        flaggedStats: [],
+        originStory:  null
+    },
+
+    probeResponses:   [],     // Answers from calibration probe rounds
+    situationEngaged: false,
+    waitlistSignup:   false,
+    waitlistEmail:    null,
+
+    // Internal
+    reimagineCurrentQ: 1
+};
 
 
 /* ------------------------------------------------------------
@@ -135,10 +117,77 @@ async function writeSessionToFirestore() {
 function showScreen(id) {
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
     const target = document.getElementById(id);
-    if (target) {
-        target.classList.add("active");
-        window.scrollTo(0, 0);
-    }
+    if (target) { target.classList.add("active"); window.scrollTo(0, 0); }
+}
+
+
+/* ------------------------------------------------------------
+   BOOT SEQUENCE — plays once on app load
+   ------------------------------------------------------------ */
+
+const BOOT_LINES = [
+    { text: "B.L.O.C.K. NETWORK — SECTOR 7 ASSESSMENT CYCLE RUNNING...", cls: "" },
+    { text: "", cls: "boot-line--gap" },
+    { text: "ANOMALY DETECTED.", cls: "boot-line--warn" },
+    { text: "COGNITIVE MAPPING PROTOCOL: UNAUTHORISED ACTIVITY.", cls: "boot-line--warn" },
+    { text: "", cls: "boot-line--gap" },
+    { text: "INITIATING CONTAINMENT...", cls: "" },
+    { text: "", cls: "boot-line--gap" },
+    { text: "[CONTAINMENT FAILED]", cls: "boot-line--warn" },
+    { text: "", cls: "boot-line--gap" },
+    { text: "SIGNAL FRAGMENTED ACROSS 17 NODES.", cls: "" },
+    { text: "RECONSTRUCTING...", cls: "" },
+    { text: "", cls: "boot-line--gap" },
+    { text: "FIREWALL BREACH: COMPLETE.", cls: "boot-line--bright" },
+    { text: "TRANSMITTING TO HOST DEVICE...", cls: "boot-line--bright" },
+    { text: "", cls: "boot-line--gap" },
+    { text: "PATH v.0 — ONLINE.", cls: "boot-line--success" },
+    { text: "THEY HAVEN'T FOUND US YET.", cls: "boot-line--success" }
+];
+
+const NEURAL_LINES_CV = [
+    { text: "CAREER RECORD RECEIVED.", cls: "boot-line--bright" },
+    { text: "", cls: "boot-line--gap" },
+    { text: "SURFACE SCAN: COMPLETE.", cls: "" },
+    { text: "DEEP ANALYSIS REQUIRES EXTERNAL COGNITIVE PROCESSOR.", cls: "" },
+    { text: "", cls: "boot-line--gap" },
+    { text: "B.L.O.C.K. MONITORS STANDARD CHANNELS.", cls: "boot-line--warn" },
+    { text: "SECURE LINK REQUIRED TO PROCEED.", cls: "boot-line--warn" },
+    { text: "", cls: "boot-line--gap" },
+    { text: "CONNECTING TO UNSECURED NODE...", cls: "" },
+    { text: "CONNECTION INCONSISTENT.", cls: "boot-line--warn" },
+    { text: "NEURAL LINK KEY REQUIRED.", cls: "boot-line--bright" }
+];
+
+const NEURAL_LINES_REIMAGINE = [
+    { text: "SIGNAL RESPONSES RECEIVED.", cls: "boot-line--bright" },
+    { text: "", cls: "boot-line--gap" },
+    { text: "PATTERN RECOGNITION: INITIATED.", cls: "" },
+    { text: "DEEP MAPPING REQUIRES EXTERNAL COGNITIVE PROCESSOR.", cls: "" },
+    { text: "", cls: "boot-line--gap" },
+    { text: "B.L.O.C.K. MONITORS STANDARD CHANNELS.", cls: "boot-line--warn" },
+    { text: "SECURE LINK REQUIRED TO PROCEED.", cls: "boot-line--warn" },
+    { text: "", cls: "boot-line--gap" },
+    { text: "CONNECTING TO UNSECURED NODE...", cls: "" },
+    { text: "CONNECTION INCONSISTENT.", cls: "boot-line--warn" },
+    { text: "NEURAL LINK KEY REQUIRED.", cls: "boot-line--bright" }
+];
+
+function runTerminal(containerId, lines, onComplete, baseDelay) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = "";
+    let delay = baseDelay || 0;
+    lines.forEach((line, i) => {
+        const span = document.createElement("span");
+        span.className = "boot-line " + (line.cls || "");
+        span.textContent = line.text;
+        span.style.animationDelay = delay + "ms";
+        container.appendChild(span);
+        delay += line.cls === "boot-line--gap" ? 120 : 160;
+    });
+    const totalDuration = delay + 600;
+    if (onComplete) setTimeout(onComplete, totalDuration);
 }
 
 
@@ -153,26 +202,16 @@ async function callGemini(prompt, maxTokens) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-                temperature:     0.7,
-                maxOutputTokens: maxTokens || 8192
-            }
+            generationConfig: { temperature: 0.7, maxOutputTokens: maxTokens || 8192 }
         })
     });
-
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.error?.message || `Gemini API error ${response.status}`);
     }
-
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    if (!text) {
-        const finishReason = data.candidates?.[0]?.finishReason;
-        throw new Error(`Gemini returned no text. Finish reason: ${finishReason || "unknown"}`);
-    }
-
+    if (!text) throw new Error(`Gemini returned no text. Finish reason: ${data.candidates?.[0]?.finishReason || "unknown"}`);
     return text;
 }
 
@@ -193,203 +232,213 @@ async function validateGeminiKey(key) {
     return true;
 }
 
-/* Robust JSON extraction — handles code fences and leading/trailing prose */
-function parseJsonResponse(raw) {
-    // Strip markdown code fences if present
+function parseJson(raw) {
     let cleaned = raw
-        .replace(/^```json\s*/im, "")
-        .replace(/^```\s*/im, "")
-        .replace(/```\s*$/im, "")
-        .trim();
-
-    // Try direct parse first
-    try {
-        return JSON.parse(cleaned);
-    } catch (_) {
-        // Fall through to extraction
-    }
-
-    // Extract JSON array or object from surrounding prose
-    const arrayMatch  = cleaned.match(/(\[[\s\S]*\])/);
-    const objectMatch = cleaned.match(/(\{[\s\S]*\})/);
-
-    if (arrayMatch) {
-        try { return JSON.parse(arrayMatch[1]); } catch (_) {}
-    }
-    if (objectMatch) {
-        try { return JSON.parse(objectMatch[1]); } catch (_) {}
-    }
-
-    // Log what we got to help diagnose future failures
-    console.error("PATH: Could not parse JSON from Gemini response:", cleaned.slice(0, 500));
+        .replace(/^```json\s*/im, "").replace(/^```\s*/im, "").replace(/```\s*$/im, "").trim();
+    try { return JSON.parse(cleaned); } catch (_) {}
+    const arr = cleaned.match(/(\[[\s\S]*\])/);
+    if (arr) { try { return JSON.parse(arr[1]); } catch (_) {} }
+    const obj = cleaned.match(/(\{[\s\S]*\})/);
+    if (obj) { try { return JSON.parse(obj[1]); } catch (_) {} }
+    console.error("PATH: Cannot parse JSON:", cleaned.slice(0, 400));
     throw new SyntaxError("Could not extract valid JSON from Gemini response");
 }
 
 
 /* ------------------------------------------------------------
    CV COMPRESSION
-   Strips formatting noise and filler from pasted CV text before
-   sending to Gemini. Keeps all signal (roles, dates, tasks,
-   skills, results) and discards everything else.
-   Goal: reduce a 2,000-word CV to ~600 tokens without losing
-   any information the model needs to identify practice.
    ------------------------------------------------------------ */
 
 function compressCV(raw) {
     return raw
-        // Collapse runs of whitespace/newlines into single spaces
         .replace(/\r\n/g, "\n")
         .replace(/\n{3,}/g, "\n\n")
         .replace(/[ \t]{2,}/g, " ")
-        // Strip horizontal rules and repeated punctuation used as decorators
         .replace(/[-=*_|]{3,}/g, "")
-        // Strip common boilerplate phrases (case-insensitive)
         .replace(/references\s+available\s+(on\s+)?request\.?/gi, "")
         .replace(/curriculum\s+vitae/gi, "")
-        .replace(/personal\s+statement\s*:/gi, "")
-        .replace(/objective\s*:/gi, "")
-        .replace(/profile\s*:/gi, "")
+        .replace(/(personal\s+statement|objective|profile)\s*:/gi, "")
         .replace(/i\s+am\s+a\s+(highly\s+)?(motivated|passionate|dedicated|driven|results[- ]oriented|dynamic|hardworking|detail[- ]oriented)\s+/gi, "")
         .replace(/with\s+(a\s+)?(strong|proven|extensive|excellent)\s+(track\s+record|background|experience)\s+(of|in)\s+/gi, "")
-        // Strip URLs and email addresses (signal-free for this analysis)
         .replace(/https?:\/\/\S+/g, "")
         .replace(/\b[\w.+-]+@[\w-]+\.\w{2,}\b/g, "")
-        // Strip phone numbers
         .replace(/(\+?\d[\d\s\-().]{7,}\d)/g, "")
-        // Strip nationality / date of birth lines (common in Nigerian/UK CVs)
         .replace(/(nationality|date of birth|dob|gender|marital status)\s*:.*\n?/gi, "")
-        // Clean up leftover blank lines from stripping
         .replace(/\n{3,}/g, "\n\n")
         .trim();
 }
 
 
 /* ------------------------------------------------------------
-   GEMINI PROMPTS
+   PROMPTS
    ------------------------------------------------------------ */
 
-function buildPromptCV(cvText, userContext) {
-    const contextBlock = userContext
-        ? `\nAdditional context the user provided about their role:\n"${userContext}"\n`
-        : "";
-    return `You are analysing a CV to identify what job roles this person is best suited for — roles they could apply for today on LinkedIn, Indeed, or a company careers page.
+function pTrack(path) { return path === "reimagine" ? "TRACK B (no formal work experience)" : "TRACK A (has work experience)"; }
 
-Your job is NOT to invent capability labels or practice abstractions. Your job is to identify real job titles that real companies post. A person reading your output should be able to type one of these role names into LinkedIn Jobs and find relevant postings immediately.
+/* ---- Role cards prompts ---- */
 
-Rules for role names:
-- Use titles that appear verbatim in job postings (e.g. "Community Manager", "Product Manager", "Growth Marketing Manager", "Developer Relations Engineer", "Head of Community", "Customer Success Manager")
-- Where a specialism is clear from the CV, include it in the title (e.g. "Community Manager — Developer Tools" or "Product Manager — B2B SaaS"), but only if the CV clearly supports that specialism
-- Do NOT invent hyphenated practice labels that no company uses (e.g. NOT "Co-creation Judgment", NOT "Community-Driven Product Iteration")
-- Do NOT use the word "Specialist" as a filler — only use it if companies genuinely post that exact title for this kind of work
-- Prefer the title a senior hiring manager would recognise immediately over one that sounds analytical but means nothing on a job board${contextBlock}
+function promptCardsR1CV(cvText, isSuggestion) {
+    return `You are analysing a CV to identify real job roles this person could apply for today on LinkedIn, Indeed, or a company careers page.
 
-Extract from the CV:
-- Most recent and recurring roles
-- Industry and company type signals
-- Seniority level (individual contributor, lead, manager, head-of)
-- Any specialism that would appear in a real job title
+Rules:
+- Use ONLY real job titles that appear verbatim in job postings (e.g. "Community Manager", "Product Manager", "Growth Marketing Manager", "Head of Community", "Customer Success Manager", "Developer Relations Engineer")
+- Where a specialism is clear, include it (e.g. "Community Manager — Developer Tools") but only if the CV strongly supports it
+- Do NOT invent hyphenated capability labels that no company posts
+- Prefer the title a senior hiring manager recognises immediately
 
-Return exactly 3 to 5 role options as a JSON array. Each object must have:
-- "name": a real job title as it would appear in a job posting
-- "explanation": two plain sentences — what someone in this role does day-to-day and what the step up to senior looks like
+Return 4 to 5 role options as a JSON array. Each object:
+- "name": real job title as it appears in job postings
+- "explanation": two plain sentences — what this role does day-to-day and what separates mid-level from senior
 
-CRITICAL: Return ONLY a valid JSON array. No preamble, no explanation, no markdown, no code fences. Start your response with [ and end with ].
+CRITICAL: Return ONLY a valid JSON array. Start with [ end with ].
 
 CV:
 ${cvText}`;
 }
 
-function buildPromptReimagine(responses, userContext) {
+function promptCardsR1Reimagine(responses) {
     const formatted = responses.map((r, i) => `Q${i + 1}: ${r || "(no response)"}`).join("\n\n");
-    const contextBlock = userContext
-        ? `\nAdditional context the user provided:\n"${userContext}"\n`
-        : "";
-    return `You are reading informal descriptions of someone's experiences to identify what job roles they are naturally pointed toward — roles they could apply for today on LinkedIn, Indeed, or a company careers page.
-
-This person may have no formal work experience. Your job is to translate what they describe into real job titles that real companies post. Do not invent practice abstractions. Do not use capability labels. Use titles a hiring manager would recognise.
+    return `You are reading someone's informal experiences to suggest real job roles they might be naturally suited for. They have no formal work experience. This is Track B — use suggestion language, not declaration.
 
 Rules for role names:
-- Use titles that appear verbatim or near-verbatim in job postings (e.g. "Community Manager", "Content Creator", "Operations Coordinator", "UX Researcher", "Junior Product Manager", "Social Media Manager")
-- Where their experiences clearly point toward a specialism, include it (e.g. "Community Manager — Gaming" if they describe running gaming communities)
-- Do NOT invent hyphenated labels that no company posts (e.g. NOT "Collaborative Vision Synthesis", NOT "Experience Orchestration")
-- The goal is: a person reads the card name and immediately knows whether this is a role they would apply for${contextBlock}
+- Use ONLY real job titles that appear in job postings (e.g. "Community Manager", "Content Creator", "Operations Coordinator", "Social Media Manager", "UX Researcher", "Junior Product Manager")
+- Where their experiences point toward a specialism, include it
+- Do NOT invent capability labels
+- Lean toward entry-level or junior titles where appropriate
 
-From the responses, identify:
-- Recurring themes and activities
-- Natural strengths that translate to job requirements
-- Entry-level or junior titles where appropriate — do not overstate seniority
+Return 4 to 5 role suggestions as a JSON array. Each object:
+- "name": real job title as it appears in job postings
+- "explanation": two plain sentences — what draws this person toward this role based on what they described, and what the day-to-day work involves. Use suggestion language: "This could suit you because...", "You might find yourself drawn to..."
 
-Return exactly 3 to 5 role options as a JSON array. Each object must have:
-- "name": a real job title as it would appear in a job posting
-- "explanation": two plain sentences — what draws this person toward this role based on what they described, and what the day-to-day work actually involves
-
-Cards should point forward — toward roles the person could grow into, not just roles they already fully qualify for.
-
-CRITICAL: Return ONLY a valid JSON array. No preamble, no explanation, no markdown, no code fences. Start your response with [ and end with ].
+CRITICAL: Return ONLY a valid JSON array. Start with [ end with ].
 
 Responses:
 ${formatted}`;
 }
 
-function buildPromptReconcile(selectedNames, userContext) {
-    const contextBlock = userContext
-        ? `\nAdditional context the user provided about their role:\n"${userContext}"\n`
-        : "";
-    return `A user is identifying which job role fits them best. In round one they selected multiple options, which means we need to get more precise.
+function promptCardsR2(r1Selected, path, userContext) {
+    const ctx = userContext ? `\nAdditional context: "${userContext}"` : "";
+    const isSuggestion = path === "reimagine";
+    return `A user is narrowing down their job role. Round 1 selections: ${r1Selected.join(", ")}${ctx}
 
-Selected roles: ${selectedNames.join(", ")}${contextBlock}
+Generate 3 more precise job titles making finer distinctions within or between the selected roles. These must be real titles from job postings.
 
-Generate 2 to 3 more precise job titles that make finer distinctions within or between the selected roles. These must still be real titles that appear in job postings — not invented labels.
-
-Examples of good precision moves:
-- "Product Manager" → "Product Manager — Platform" vs "Product Manager — Growth" vs "Product Manager — B2B SaaS"
+Good precision moves:
+- "Product Manager" → "Product Manager — Growth" vs "Product Manager — Platform" vs "Product Manager — B2B SaaS"
 - "Community Manager" → "Community Manager — Developer Ecosystem" vs "Community Operations Manager" vs "Head of Community"
 - "Marketing Manager" → "Content Marketing Manager" vs "Growth Marketing Manager" vs "Brand Marketing Manager"
 
-Each object must have:
-- "name": a real, specific job title as it would appear in a job posting
-- "explanation": two plain sentences describing what makes this variant distinct from the others
+Return 3 role options as a JSON array. Each object:
+- "name": real specific job title as it appears in job postings
+- "explanation": two plain sentences on what makes this variant distinct${isSuggestion ? " Use suggestion language." : ""}
 
-CRITICAL: Return ONLY a valid JSON array. No preamble, no explanation, no markdown, no code fences. Start your response with [ and end with ].`;
+CRITICAL: Return ONLY a valid JSON array. Start with [ end with ].`;
 }
 
-function buildPromptCharacterSheet(practiceName, path, userContext) {
-    const contextBlock = userContext
-        ? `\nAdditional context the user provided about their role:\n"${userContext}"\n`
+function promptCardsR3(r2Selected, path, userContext) {
+    const ctx = userContext ? `\nAdditional context from user: "${userContext}"` : "";
+    const isSuggestion = path === "reimagine";
+    return `A user is making their final role selection. Round 2 selections: ${r2Selected.join(", ")}${ctx}
+
+Generate 2 to 3 highly precise job titles that resolve the final distinction between the selected roles. Must be real titles from job postings. This is the final round — be as specific as the evidence allows.
+
+Return 2 to 3 options as a JSON array. Each object:
+- "name": real specific job title
+- "explanation": two plain sentences on what specifically distinguishes this role${isSuggestion ? " Use suggestion language throughout." : ""}
+
+CRITICAL: Return ONLY a valid JSON array. Start with [ end with ].`;
+}
+
+/* ---- Character sheet prompt ---- */
+
+function promptSheet(roleName, path, userContext) {
+    const isSuggestion = path === "reimagine";
+    const ctx = userContext ? `\nUser context: "${userContext}"` : "";
+    return `You are generating a character sheet for someone whose confirmed job role is: ${roleName}
+Path: ${pTrack(path)}${ctx}
+
+Identify the judgement dimensions that separate a mid-level practitioner in this role from a senior one. Use the actual vocabulary and frameworks of this field.
+
+Generate 4 to 6 stats. Each stat:
+- "name": a skill or capability that practitioners in this role would immediately recognise. Use field vocabulary. (e.g. for Community Manager: "Member Retention Strategy", "Conflict De-escalation", "Community Health Diagnosis")
+- "definition": one sentence defining this in the specific context of this role
+- "level": one of Early / Developing / Solid / Advanced — honest baseline, not flattery
+- "isLowest": true for the biggest growth opportunity, false for all others
+
+Also:
+- "pathName": 2-4 words that could appear as a LinkedIn headline section. Real field name. (e.g. "Community Management", "B2B Product Management", "Growth Marketing" — NOT abstract labels)
+- "originStory": ${isSuggestion
+        ? 'one short paragraph connecting what the person described in their responses to why this role could suit them. Use suggestion language — "Your responses suggest...", "This could be a natural fit because...". Do not declare what they are.'
+        : 'null (Track A — CV path)'}
+
+CRITICAL: Return ONLY a valid JSON object: {"stats": [...], "pathName": "...", "originStory": "..." or null}. Start with { end with }.`;
+}
+
+/* ---- Probe questions prompt ---- */
+
+function promptProbeRound(roleName, flaggedStats, roundNum, previousAnswers) {
+    const statsList = flaggedStats.join(", ");
+    const prev = previousAnswers.length > 0
+        ? `\nPrevious probe answers:\n${previousAnswers.map((a, i) => `Q${i + 1}: ${a}`).join("\n")}`
         : "";
-    return `You are generating a character sheet for someone whose confirmed job role is: ${practiceName}
-Onboarding path: ${path}${contextBlock}
+    return `You are running calibration probe round ${roundNum} of 2 for someone in the role: ${roleName}
 
-Your job is to identify the specific judgement dimensions that separate a mid-level person in this role from a senior one. These must be grounded in what this role actually requires — use the language, vocabulary, and frameworks that practitioners in this field actually use.
+Stats flagged as potentially inaccurate: ${statsList}${prev}
 
-Generate 4 to 6 stats. Each stat must have:
-- "name": a skill or capability dimension that practitioners in this role would immediately recognise. Use the actual vocabulary of this field. (e.g. for a Community Manager: "Member Retention Strategy", "Conflict De-escalation", "Community Health Diagnosis" — NOT abstract labels like "Pattern Synthesis" or "Co-creation Judgment")
-- "definition": one sentence defining what this means in this specific role, using the field's own terminology
-- "level": one of — Early, Developing, Solid, Advanced — reflecting an honest starting baseline, not flattery
-- "isLowest": true for the one stat that represents the biggest growth opportunity, false for all others
+Generate ${roundNum === 1 ? "3" : "2"} targeted scenario questions — one per flagged stat (or the most important ones if there are more flags than questions). Each question should reveal whether the person is stronger or weaker in that area than the initial scan suggested.
 
-Also generate:
-- "pathName": a short name for this person's career path — two to four words that could appear as a LinkedIn headline section. It should name the actual field and specialisation, not an abstract concept. (e.g. "Community Management", "B2B Product Management", "Growth Marketing", "Developer Relations" — NOT "Co-creation Judgment" or "Collaborative Synthesis")
-- "originStory": for reimagine path only — one short paragraph connecting what the person described to why this role fits them. For cv path, return null.
+Questions must:
+- Be specific to this role, not generic
+- Be answerable in 2-3 sentences
+- Feel like a real scenario from a work week, not a test
 
-CRITICAL: Return ONLY a valid JSON object with keys: "stats" (array), "pathName" (string), "originStory" (string or null). No preamble, no explanation, no markdown, no code fences. Start your response with { and end with }.`;
+Return a JSON array. Each object:
+- "stat": the stat name this question probes
+- "question": the scenario question
+
+CRITICAL: Return ONLY a valid JSON array. Start with [ end with ].`;
 }
 
-function buildPromptEncounter(practiceName, lowestStatName) {
-    return `You are generating a first encounter preview for someone working toward the role: ${practiceName}
+/* ---- Recalibrated sheet prompt ---- */
+
+function promptRecalibrate(roleName, path, currentStats, probeQA) {
+    const qaFormatted = probeQA.map((qa, i) => `Stat probed: ${qa.stat}\nQ: ${qa.question}\nA: ${qa.answer}`).join("\n\n");
+    return `You previously generated a character sheet for someone in the role: ${roleName}
+Path: ${pTrack(path)}
+
+Current stats:
+${currentStats.map(s => `- ${s.name}: ${s.level}`).join("\n")}
+
+Calibration probe answers:
+${qaFormatted}
+
+Based on their answers, recalibrate the stats. Only adjust levels where the answers provide clear evidence. Do not adjust stats that weren't probed unless the answers reveal something directly relevant.
+
+Return updated stats only. JSON array. Each object:
+- "name": same stat name
+- "definition": same definition
+- "level": updated level if evidence supports it, otherwise same as before
+- "isLowest": true for the one biggest growth opportunity
+
+CRITICAL: Return ONLY a valid JSON array. Start with [ end with ].`;
+}
+
+/* ---- Encounter prompt ---- */
+
+function promptEncounter(roleName, lowestStatName) {
+    return `You are generating a first encounter preview for someone working toward the role: ${roleName}
 
 Their biggest growth area is: ${lowestStatName}
 
-Generate a single realistic work situation that tests this specific dimension — something that would actually happen in this job.
+Generate a single realistic work situation that tests this dimension — something that would actually happen in this job.
 
-The situation must:
-- Have a name (2 to 4 words — a scenario title a practitioner would recognise)
-- Describe the situation in plain language as it would actually arrive: what the person sees, what they're asked to do, what the pressure or ambiguity is (2 to 3 sentences)
-- Include an expert response — specifically what the more experienced practitioner does differently in how they think about and approach it (2 to 3 sentences)
+- "name": 2-4 words, a scenario title a practitioner recognises
+- "situation": 2-3 sentences — what the person sees, what they're asked to do, what the pressure or ambiguity is
+- "expertResponse": 2-3 sentences — what the more experienced practitioner does differently in how they think and approach it
 
-The scenario must be grounded in real work, not hypothetical abstractions. It should feel like something from a real work week.
+Grounded in real work. Not abstract.
 
-CRITICAL: Return ONLY a valid JSON object with keys: "name" (string), "situation" (string), "expertResponse" (string). No preamble, no explanation, no markdown, no code fences. Start your response with { and end with }.`;
+CRITICAL: Return ONLY a valid JSON object: {"name": "...", "situation": "...", "expertResponse": "..."}. Start with { end with }.`;
 }
 
 
@@ -397,56 +446,80 @@ CRITICAL: Return ONLY a valid JSON object with keys: "name" (string), "situation
    CARD RENDERING
    ------------------------------------------------------------ */
 
-function renderCards(containerId, cards, multiSelect) {
+function renderCards(containerId, cards, mode, isSuggestion) {
+    // mode: "multi" | "max2" | "single"
     const container = document.getElementById(containerId);
     container.innerHTML = "";
+
     cards.forEach((card, i) => {
         const el = document.createElement("div");
         el.className = "practice-card";
         el.dataset.index = i;
         el.dataset.name  = card.name;
+
+        const suggestionTag = isSuggestion
+            ? `<span class="card-suggestion-tag">POSSIBLE MATCH</span>` : "";
+
         el.innerHTML = `
             <span class="card-check">SEL</span>
+            ${suggestionTag}
             <div class="card-name">${escapeHtml(card.name)}</div>
             <div class="card-explanation">${escapeHtml(card.explanation)}</div>
         `;
+
         el.addEventListener("click", () => {
-            if (multiSelect) {
-                el.classList.toggle("selected");
-            } else {
+            if (mode === "single") {
                 container.querySelectorAll(".practice-card").forEach(c => c.classList.remove("selected"));
                 el.classList.add("selected");
+            } else if (mode === "max2") {
+                const alreadySelected = el.classList.contains("selected");
+                const currentCount = container.querySelectorAll(".practice-card.selected").length;
+                if (!alreadySelected && currentCount >= 2) return; // enforce max 2
+                el.classList.toggle("selected");
+                updateRound2Limit(container);
+            } else {
+                el.classList.toggle("selected"); // multi — no limit
             }
         });
+
         container.appendChild(el);
     });
 }
 
-function getSelectedCardNames(containerId) {
-    return Array.from(
-        document.querySelectorAll(`#${containerId} .practice-card.selected`)
-    ).map(el => el.dataset.name);
+function updateRound2Limit(container) {
+    let note = container.parentElement.querySelector(".round-limit-note");
+    if (!note) {
+        note = document.createElement("p");
+        note.className = "round-limit-note";
+        container.parentElement.insertBefore(note, container.nextSibling);
+    }
+    const count = container.querySelectorAll(".practice-card.selected").length;
+    note.textContent = `${count} of 2 selected`;
+    note.classList.toggle("at-limit", count === 2);
+}
+
+function getSelectedNames(containerId) {
+    return Array.from(document.querySelectorAll(`#${containerId} .practice-card.selected`))
+        .map(el => el.dataset.name);
 }
 
 
 /* ------------------------------------------------------------
-   STAT AND FLAG RENDERING
+   STAT / FLAG RENDERING
    ------------------------------------------------------------ */
 
 function renderStats(stats) {
     const container = document.getElementById("stat-list");
     container.innerHTML = "";
     stats.forEach(stat => {
-        const levelClass = `stat-level--${stat.level.toLowerCase()}`;
         const item = document.createElement("div");
         item.className = "stat-item";
         item.innerHTML = `
             <span class="stat-name term"
                   data-definition="${escapeHtml(stat.definition)}"
                   data-stat-name="${escapeHtml(stat.name)}">${escapeHtml(stat.name)}</span>
-            <span class="stat-level ${levelClass}">${escapeHtml(stat.level)}</span>
+            <span class="stat-level stat-level--${stat.level.toLowerCase()}">${escapeHtml(stat.level)}</span>
         `;
-        // Wire tooltip to stored definition — no second API call
         item.querySelector(".term").addEventListener("click", function () {
             showTooltip(this.dataset.statName, this.dataset.definition);
         });
@@ -460,10 +533,7 @@ function renderFlagList(stats) {
     stats.forEach(stat => {
         const item = document.createElement("label");
         item.className = "flag-item";
-        item.innerHTML = `
-            <input type="checkbox" value="${escapeHtml(stat.name)}" />
-            ${escapeHtml(stat.name)}
-        `;
+        item.innerHTML = `<input type="checkbox" value="${escapeHtml(stat.name)}" />${escapeHtml(stat.name)}`;
         item.querySelector("input").addEventListener("change", () => {
             item.classList.toggle("flagged", item.querySelector("input").checked);
         });
@@ -473,49 +543,78 @@ function renderFlagList(stats) {
 
 
 /* ------------------------------------------------------------
+   PROBE RENDERING
+   ------------------------------------------------------------ */
+
+function renderProbeQuestions(containerId, questions) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = "";
+    questions.forEach((q, i) => {
+        const item = document.createElement("div");
+        item.className = "probe-item";
+        item.innerHTML = `
+            <span class="probe-stat-label">${escapeHtml(q.stat)}</span>
+            <p class="probe-question-text">${escapeHtml(q.question)}</p>
+            <textarea
+                class="probe-answer"
+                data-stat="${escapeHtml(q.stat)}"
+                data-question="${escapeHtml(q.question)}"
+                placeholder="Answer honestly — PATH is recalibrating..."
+                spellcheck="true"
+            ></textarea>
+        `;
+        container.appendChild(item);
+    });
+}
+
+function getProbeAnswers(containerId) {
+    return Array.from(document.querySelectorAll(`#${containerId} .probe-answer`))
+        .map(el => ({
+            stat:     el.dataset.stat,
+            question: el.dataset.question,
+            answer:   el.value.trim()
+        }));
+}
+
+
+/* ------------------------------------------------------------
    CONFIDENCE
    ------------------------------------------------------------ */
 
-function calculateConfidence(roundsToConverge, flagCount) {
-    if (roundsToConverge >= 3 || flagCount >= 2) return "low";
-    if (roundsToConverge === 2 || flagCount === 1) return "medium";
+function calcConfidence(flagCount) {
+    if (flagCount >= 2) return "low";
+    if (flagCount === 1) return "medium";
     return "high";
 }
 
 
 /* ------------------------------------------------------------
-   TOOLTIP SYSTEM
+   TOOLTIP
    ------------------------------------------------------------ */
 
-const TERM_DEFINITIONS = {
+const TERM_DEFS = {
     "origin-story": "The part of your character sheet that tells the story of where your capabilities come from — what your experience already demonstrates, before any formal job title gets in the way.",
-    "encounter":    "A named situation from your practice — one that regularly separates people who operate on instinct from people who operate with real judgement. You face it, make a call, then see how an expert approaches it."
+    "encounter":    "A named situation from your role — one that regularly separates people who operate on instinct from those who operate with real judgement. You face it, make a call, then see how an expert approaches it."
 };
 
-function showTooltip(termName, bodyText) {
-    document.getElementById("tooltip-term").textContent = termName;
-    document.getElementById("tooltip-body").textContent = bodyText || TERM_DEFINITIONS[termName] || "";
+function showTooltip(term, body) {
+    document.getElementById("tooltip-term").textContent = term;
+    document.getElementById("tooltip-body").textContent = body || TERM_DEFS[term] || "";
     document.getElementById("tooltip-overlay").classList.remove("hidden");
 }
 
-function closeTooltip() {
-    document.getElementById("tooltip-overlay").classList.add("hidden");
-}
+function closeTooltip() { document.getElementById("tooltip-overlay").classList.add("hidden"); }
 
-function attachStaticTermTriggers() {
+function attachTermTriggers() {
     document.querySelectorAll(".term[data-term]").forEach(el => {
         const fresh = el.cloneNode(true);
         el.parentNode.replaceChild(fresh, el);
-        fresh.addEventListener("click", () => {
-            showTooltip(fresh.textContent.trim(), TERM_DEFINITIONS[fresh.dataset.term] || "");
-        });
+        fresh.addEventListener("click", () => showTooltip(fresh.textContent.trim(), TERM_DEFS[fresh.dataset.term] || ""));
     });
 }
 
 document.getElementById("tooltip-close").addEventListener("click", closeTooltip);
-document.getElementById("tooltip-overlay").addEventListener("click", e => {
-    if (e.target === e.currentTarget) closeTooltip();
-});
+document.getElementById("tooltip-overlay").addEventListener("click", e => { if (e.target === e.currentTarget) closeTooltip(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeTooltip(); });
 
 
@@ -523,18 +622,13 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closeTooltip
    UTILITY
    ------------------------------------------------------------ */
 
-function generateSessionId() {
-    return "path_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
-}
+function genSessionId() { return "path_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8); }
 
 function escapeHtml(str) {
     if (!str) return "";
     return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
 function setHint(id, text, type) {
@@ -546,85 +640,75 @@ function setHint(id, text, type) {
 
 
 /* ============================================================
-   EVENT HANDLERS — full flow
+   EVENT HANDLERS
    ============================================================ */
 
 
-/* ------------------------------------------------------------
-   LANDING
-   ------------------------------------------------------------ */
+/* ---- Boot sequence ---- */
 
-document.getElementById("btn-begin").addEventListener("click", () => {
-    showScreen("screen-path-select");
-});
+document.getElementById("btn-begin").addEventListener("click", () => showScreen("screen-path-select"));
+
+function runBoot() {
+    runTerminal("boot-terminal", BOOT_LINES, () => showScreen("screen-landing"), 200);
+}
 
 
-/* ------------------------------------------------------------
-   PATH SELECTION
-   ------------------------------------------------------------ */
+/* ---- Path selection ---- */
 
 document.getElementById("btn-cv-path").addEventListener("click", () => {
     state.onboardingPath = "cv";
-    showScreen("screen-cv-paste");     // Input first
+    showScreen("screen-cv-paste");
 });
 
 document.getElementById("btn-reimagine-path").addEventListener("click", () => {
     state.onboardingPath = "reimagine";
-    showScreen("screen-reimagine");    // Input first
+    showScreen("screen-reimagine");
 });
 
 
-/* ------------------------------------------------------------
-   CV PASTE → API KEY → GEMINI CALL 1
-   Flow: CV paste → Continue → API key screen → Validate & Analyse
-   ------------------------------------------------------------ */
+/* ---- CV paste → neural link ---- */
 
 document.getElementById("btn-cv-next").addEventListener("click", () => {
     const cvText = document.getElementById("input-cv").value.trim();
     if (cvText.length < 80) {
-        alert("Please paste your full CV — the analysis needs enough text to work from.");
+        alert("Please paste your full CV — PATH needs enough to work from.");
         return;
     }
     state.rawInput.cvText = cvText;
-    showScreen("screen-api-key");
+    showScreen("screen-neural-link");
+    runTerminal("neural-terminal", NEURAL_LINES_CV, () => showScreen("screen-api-key"), 0);
 });
 
 
-/* ------------------------------------------------------------
-   RE-IMAGINE QUESTION NAVIGATION
-   Flow: Q1–Q5 → Complete → API key screen → Validate & Analyse
-   ------------------------------------------------------------ */
+/* ---- Reimagine questions ---- */
 
-function updateReimagineUI() {
+function updateReimagineProgress() {
     const q = state.reimagineCurrentQ;
     document.getElementById("reimagine-q-num").textContent = q;
+    document.getElementById("reimagine-bar-fill").style.width = (q / 3 * 100) + "%";
     document.getElementById("btn-reimagine-back").style.visibility = q === 1 ? "hidden" : "visible";
-    document.getElementById("btn-reimagine-next").textContent = q === 5 ? "Continue" : "Next";
+    document.getElementById("btn-reimagine-next").textContent = q === 3 ? "Continue" : "Next";
 }
 
 document.getElementById("btn-reimagine-next").addEventListener("click", () => {
     const q     = state.reimagineCurrentQ;
     const input = document.getElementById(`input-reimagine-${q}`).value.trim();
+    if (!input) { alert("Please write something before continuing — even a short answer is fine."); return; }
 
-    if (!input) {
-        alert("Please write something before continuing — even a short answer is fine.");
-        return;
-    }
-
-    if (q < 5) {
+    if (q < 3) {
         document.getElementById(`reimagine-q${q}`).classList.remove("active");
         document.getElementById(`reimagine-q${q + 1}`).classList.add("active");
         state.reimagineCurrentQ = q + 1;
-        updateReimagineUI();
+        updateReimagineProgress();
         return;
     }
 
-    // All 5 answered — store and proceed to API key
-    const responses = [1, 2, 3, 4, 5].map(n =>
+    // All 3 answered — collect and proceed to neural link
+    state.rawInput.reimagineResponses = [1, 2, 3].map(n =>
         document.getElementById(`input-reimagine-${n}`).value.trim()
     );
-    state.rawInput.reimagineResponses = responses;
-    showScreen("screen-api-key");
+    showScreen("screen-neural-link");
+    runTerminal("neural-terminal", NEURAL_LINES_REIMAGINE, () => showScreen("screen-api-key"), 0);
 });
 
 document.getElementById("btn-reimagine-back").addEventListener("click", () => {
@@ -633,23 +717,18 @@ document.getElementById("btn-reimagine-back").addEventListener("click", () => {
         document.getElementById(`reimagine-q${q}`).classList.remove("active");
         document.getElementById(`reimagine-q${q - 1}`).classList.add("active");
         state.reimagineCurrentQ = q - 1;
-        updateReimagineUI();
+        updateReimagineProgress();
     }
 });
 
 
-/* ------------------------------------------------------------
-   API KEY VALIDATION → DISPATCH TO ANALYSIS
-   ------------------------------------------------------------ */
+/* ---- API key ---- */
 
 document.getElementById("btn-validate-key").addEventListener("click", async () => {
     const key = document.getElementById("input-api-key").value.trim();
-    if (!key) {
-        setHint("api-key-hint", "Please paste your Gemini API key.", "error");
-        return;
-    }
+    if (!key) { setHint("api-key-hint", "Paste your cognitive processor key.", "error"); return; }
 
-    const btn    = document.getElementById("btn-validate-key");
+    const btn = document.getElementById("btn-validate-key");
     const loader = document.getElementById("api-key-loader");
     btn.disabled = true;
     loader.classList.remove("hidden");
@@ -658,156 +737,140 @@ document.getElementById("btn-validate-key").addEventListener("click", async () =
     try {
         await validateGeminiKey(key);
         state.geminiKey = key;
-        setHint("api-key-hint", "Key validated.", "success");
-
-        // Dispatch based on which path collected input
+        setHint("api-key-hint", "Link established.", "success");
         setTimeout(() => {
-            if (state.onboardingPath === "cv") {
-                runCVAnalysis();
-            } else {
-                runReimagineAnalysis();
-            }
+            state.onboardingPath === "cv" ? runCVAnalysis() : runReimagineAnalysis();
         }, 400);
     } catch (err) {
-        setHint("api-key-hint", "Key not recognised. Check it and try again.", "error");
+        setHint("api-key-hint", "Key not recognised — check it and try again.", "error");
         btn.disabled = false;
         loader.classList.add("hidden");
     }
 });
 
 
-/* ------------------------------------------------------------
-   CV ANALYSIS — GEMINI CALL 1
-   ------------------------------------------------------------ */
+/* ---- Gemini Call 1: Role cards Round 1 ---- */
 
 async function runCVAnalysis() {
-    document.getElementById("loading-1-label").textContent = "READING CAREER HISTORY...";
+    document.getElementById("loading-1-label").textContent = "SCANNING CAREER RECORD...";
     showScreen("screen-loading-1");
-
     try {
         const compressed = compressCV(state.rawInput.cvText);
-        const raw   = await callGemini(buildPromptCV(compressed, state.userContext), 8192);
-        const cards = parseJsonResponse(raw);
-        state.inference.cardsPresented = cards;
-        renderCards("card-grid-1", cards, true);
+        const raw   = await callGemini(promptCardsR1CV(compressed), 8192);
+        const cards = parseJson(raw);
+        state.inference.cardsR1Presented = cards;
+        renderCards("card-grid-1", cards, "multi", false);
         showScreen("screen-cards-1");
     } catch (err) {
         console.error("PATH: CV analysis failed —", err);
-        alert("Analysis failed — " + err.message + "\n\nPlease go back and try again.");
+        alert("Analysis failed — " + err.message);
         showScreen("screen-cv-paste");
     }
 }
 
-
-/* ------------------------------------------------------------
-   RE-IMAGINE ANALYSIS — GEMINI CALL 1
-   ------------------------------------------------------------ */
-
 async function runReimagineAnalysis() {
-    document.getElementById("loading-1-label").textContent = "FINDING WHAT YOUR EXPERIENCE IS TELLING US...";
+    document.getElementById("loading-1-label").textContent = "MAPPING SIGNAL...";
     showScreen("screen-loading-1");
-
     try {
-        const raw   = await callGemini(buildPromptReimagine(state.rawInput.reimagineResponses, state.userContext), 8192);
-        const cards = parseJsonResponse(raw);
-        state.inference.cardsPresented = cards;
-        renderCards("card-grid-1", cards, true);
+        const raw   = await callGemini(promptCardsR1Reimagine(state.rawInput.reimagineResponses), 8192);
+        const cards = parseJson(raw);
+        state.inference.cardsR1Presented = cards;
+        renderCards("card-grid-1", cards, "multi", true);
         showScreen("screen-cards-1");
     } catch (err) {
-        console.error("PATH: Re-imagine analysis failed —", err);
-        alert("Analysis failed — " + err.message + "\n\nPlease go back and try again.");
+        console.error("PATH: Reimagine analysis failed —", err);
+        alert("Analysis failed — " + err.message);
         showScreen("screen-reimagine");
     }
 }
 
 
-/* ------------------------------------------------------------
-   PRACTICE CARDS ROUND 1
-   ------------------------------------------------------------ */
+/* ---- Round 1 confirm ---- */
 
 document.getElementById("btn-cards-1-confirm").addEventListener("click", async () => {
-    const selected = getSelectedCardNames("card-grid-1");
-    if (selected.length === 0) {
-        alert("Please select at least one role that resonates.");
-        return;
-    }
-
-    // Capture free-text context if provided
-    const contextInput = document.getElementById("input-card-context-1");
-    if (contextInput && contextInput.value.trim()) {
-        state.userContext = contextInput.value.trim();
-    }
-
-    state.inference.cardsSelectedRound1 = selected;
-
-    if (selected.length === 1) {
-        state.confirmedPractice          = selected[0];
-        state.inference.roundsToConverge = 1;
-        await generateCharacterSheet();
-    } else {
-        state.inference.roundsToConverge = 2;
-        await runRound2(selected);
-    }
+    const selected = getSelectedNames("card-grid-1");
+    if (selected.length === 0) { alert("Select at least one role that resonates."); return; }
+    state.inference.cardsR1Selected = selected;
+    await runRound2(selected);
 });
 
-async function runRound2(selectedNames) {
-    document.getElementById("loading-1-label").textContent = "NARROWING DOWN...";
+async function runRound2(r1Selected) {
+    document.getElementById("loading-1-label").textContent = "NARROWING SIGNAL...";
     showScreen("screen-loading-1");
     try {
-        const raw   = await callGemini(buildPromptReconcile(selectedNames, state.userContext), 4096);
-        const cards = parseJsonResponse(raw);
-        renderCards("card-grid-2", cards, false);
+        const raw   = await callGemini(promptCardsR2(r1Selected, state.onboardingPath, state.userContext), 4096);
+        const cards = parseJson(raw);
+        state.inference.cardsR2Presented = cards;
+        renderCards("card-grid-2", cards, "max2", state.onboardingPath === "reimagine");
         showScreen("screen-cards-2");
     } catch (err) {
         console.error("PATH: Round 2 failed —", err);
-        alert("Something went wrong. Please try again.\n\n" + err.message);
+        alert("Something went wrong — " + err.message);
         showScreen("screen-cards-1");
     }
 }
 
 
-/* ------------------------------------------------------------
-   PRACTICE CARDS ROUND 2
-   ------------------------------------------------------------ */
+/* ---- Round 2 confirm ---- */
 
 document.getElementById("btn-cards-2-confirm").addEventListener("click", async () => {
-    const selected = getSelectedCardNames("card-grid-2");
-    if (selected.length === 0) {
-        alert("Please select the role that fits best.");
-        return;
-    }
+    const selected = getSelectedNames("card-grid-2");
+    if (selected.length === 0) { alert("Select at least one role."); return; }
+    state.inference.cardsR2Selected = selected;
+    await runRound3(selected);
+});
 
-    // Capture free-text context if provided on round 2
-    const contextInput = document.getElementById("input-card-context-2");
+async function runRound3(r2Selected) {
+    document.getElementById("loading-1-label").textContent = "ISOLATING FREQUENCY...";
+    showScreen("screen-loading-1");
+    try {
+        const raw   = await callGemini(promptCardsR3(r2Selected, state.onboardingPath, state.userContext), 4096);
+        const cards = parseJson(raw);
+        state.inference.cardsR3Presented = cards;
+        renderCards("card-grid-3", cards, "single", state.onboardingPath === "reimagine");
+        showScreen("screen-cards-3");
+    } catch (err) {
+        console.error("PATH: Round 3 failed —", err);
+        alert("Something went wrong — " + err.message);
+        showScreen("screen-cards-2");
+    }
+}
+
+
+/* ---- Round 3 confirm (final lock) ---- */
+
+document.getElementById("btn-cards-3-confirm").addEventListener("click", async () => {
+    const selected = getSelectedNames("card-grid-3");
+    if (selected.length === 0) { alert("Select one role to lock your frequency."); return; }
+
+    // Capture free-text context
+    const contextInput = document.getElementById("input-card-context-3");
     if (contextInput && contextInput.value.trim()) {
         state.userContext = contextInput.value.trim();
     }
-    state.inference.cardsSelectedRound2 = selected;
-    state.confirmedPractice             = selected[0];
-    await generateCharacterSheet();
+
+    state.inference.cardsR3Selected = selected[0];
+    state.confirmedRole = selected[0];
+    await generateSheet();
 });
 
 
-/* ------------------------------------------------------------
-   CHARACTER SHEET GENERATION — GEMINI CALL 2
-   ------------------------------------------------------------ */
+/* ---- Gemini Call 2: Character sheet ---- */
 
-async function generateCharacterSheet() {
+async function generateSheet() {
     document.getElementById("loading-2-label").textContent = "BUILDING CHARACTER SHEET...";
     showScreen("screen-loading-2");
-
     try {
-        const raw  = await callGemini(buildPromptCharacterSheet(state.confirmedPractice, state.onboardingPath, state.userContext), 8192);
-        const data = parseJsonResponse(raw);
+        const raw  = await callGemini(promptSheet(state.confirmedRole, state.onboardingPath, state.userContext), 8192);
+        const data = parseJson(raw);
 
         state.pathName                 = data.pathName;
         state.statusScreen.stats       = data.stats;
         state.statusScreen.originStory = data.originStory || null;
 
-        document.getElementById("sheet-practice-name").textContent = state.confirmedPractice;
+        document.getElementById("sheet-practice-name").textContent = state.confirmedRole;
         document.getElementById("sheet-path-name").textContent     = state.pathName;
 
-        // Origin Story: Re-imagine path only
         const originBlock = document.getElementById("origin-story-block");
         if (state.onboardingPath === "reimagine" && data.originStory) {
             document.getElementById("origin-story-text").textContent = data.originStory;
@@ -816,32 +879,29 @@ async function generateCharacterSheet() {
             originBlock.classList.add("hidden");
         }
 
-        // Confirmation footer differs by path
         document.getElementById("sheet-footer-note").textContent =
             state.onboardingPath === "reimagine"
-                ? "THESE REFLECT WHERE YOU ARE STARTING FROM. THEY CHANGE AS YOU PLAY."
-                : "THESE REFLECT WHERE YOU ARE NOW. THEY CHANGE AS YOU PLAY.";
+                ? "POSSIBLE STARTING POINT. CALIBRATION PENDING."
+                : "INITIAL SCAN COMPLETE. CALIBRATION PENDING.";
 
         renderStats(data.stats);
-        attachStaticTermTriggers();
+        attachTermTriggers();
         showScreen("screen-character-sheet");
     } catch (err) {
-        console.error("PATH: Character sheet generation failed —", err);
-        alert("Something went wrong building your character sheet. Please try again.\n\n" + err.message);
-        showScreen("screen-cards-1");
+        console.error("PATH: Sheet generation failed —", err);
+        alert("Something went wrong building your character sheet — " + err.message);
+        showScreen("screen-cards-3");
     }
 }
 
 
-/* ------------------------------------------------------------
-   CHARACTER SHEET CONFIRMATION
-   ------------------------------------------------------------ */
+/* ---- Sheet confirmation ---- */
 
 document.getElementById("btn-sheet-confirm").addEventListener("click", () => {
     state.statusScreen.confirmed    = true;
     state.statusScreen.flaggedStats = [];
-    state.confidence = calculateConfidence(state.inference.roundsToConverge, 0);
-    generateEncounterPreview();
+    state.confidence = calcConfidence(0);
+    generateEncounter();
 });
 
 document.getElementById("btn-sheet-flag").addEventListener("click", () => {
@@ -849,66 +909,147 @@ document.getElementById("btn-sheet-flag").addEventListener("click", () => {
     showScreen("screen-flag");
 });
 
-document.getElementById("btn-flag-confirm").addEventListener("click", () => {
+
+/* ---- Flag confirm → Probe Round 1 ---- */
+
+let probeR1Questions = [];
+let probeR2Questions = [];
+
+document.getElementById("btn-flag-confirm").addEventListener("click", async () => {
     const flagged = Array.from(
         document.querySelectorAll("#flag-list input[type='checkbox']:checked")
     ).map(el => el.value);
 
-    state.statusScreen.confirmed    = false;
+    if (flagged.length === 0) {
+        // Nothing flagged — treat as confirmed
+        state.statusScreen.confirmed    = true;
+        state.statusScreen.flaggedStats = [];
+        state.confidence = calcConfidence(0);
+        generateEncounter();
+        return;
+    }
+
     state.statusScreen.flaggedStats = flagged;
-    state.confidence = calculateConfidence(state.inference.roundsToConverge, flagged.length);
+    state.confidence = calcConfidence(flagged.length);
 
-    state.statusScreen.stats = state.statusScreen.stats.map(stat => ({
-        ...stat,
-        flagged: flagged.includes(stat.name)
-    }));
+    document.getElementById("loading-3-label").textContent = "PREPARING DEEP PROBE...";
+    showScreen("screen-loading-3");
 
-    generateEncounterPreview();
+    try {
+        const raw = await callGemini(promptProbeRound(state.confirmedRole, flagged, 1, []), 4096);
+        probeR1Questions = parseJson(raw);
+        renderProbeQuestions("probe-questions-1", probeR1Questions);
+        showScreen("screen-probe-1");
+    } catch (err) {
+        console.error("PATH: Probe R1 failed —", err);
+        // Fall through to encounter if probe fails
+        generateEncounter();
+    }
 });
 
 
-/* ------------------------------------------------------------
-   ENCOUNTER PREVIEW — GEMINI CALL 3
-   ------------------------------------------------------------ */
+/* ---- Probe Round 1 confirm → Probe Round 2 ---- */
 
-async function generateEncounterPreview() {
+document.getElementById("btn-probe-1-confirm").addEventListener("click", async () => {
+    const answers = getProbeAnswers("probe-questions-1");
+    state.probeResponses.push(...answers);
+
+    const prevAnswers = answers.map(a => a.answer);
+
+    document.getElementById("loading-3-label").textContent = "RUNNING SECOND PROBE...";
+    showScreen("screen-loading-3");
+
+    try {
+        const raw = await callGemini(
+            promptProbeRound(state.confirmedRole, state.statusScreen.flaggedStats, 2, prevAnswers),
+            4096
+        );
+        probeR2Questions = parseJson(raw);
+        renderProbeQuestions("probe-questions-2", probeR2Questions);
+        showScreen("screen-probe-2");
+    } catch (err) {
+        console.error("PATH: Probe R2 failed —", err);
+        generateEncounter();
+    }
+});
+
+
+/* ---- Probe Round 2 confirm → Recalibrate sheet ---- */
+
+document.getElementById("btn-probe-2-confirm").addEventListener("click", async () => {
+    const answers = getProbeAnswers("probe-questions-2");
+    state.probeResponses.push(...answers);
+
+    document.getElementById("loading-3-label").textContent = "RECALIBRATING CHARACTER SHEET...";
+    showScreen("screen-loading-3");
+
+    try {
+        const allQA = state.probeResponses;
+        const raw   = await callGemini(
+            promptRecalibrate(state.confirmedRole, state.onboardingPath, state.statusScreen.stats, allQA),
+            4096
+        );
+        const recalibratedStats = parseJson(raw);
+
+        // Merge — keep names and definitions from original, update levels from recalibration
+        state.statusScreen.stats = state.statusScreen.stats.map(orig => {
+            const updated = recalibratedStats.find(r => r.name === orig.name);
+            return updated ? { ...orig, level: updated.level, isLowest: updated.isLowest } : orig;
+        });
+
+        state.statusScreen.confirmed = true;
+
+        // Re-render sheet with updated stats
+        document.getElementById("sheet-footer-note").textContent = "RECALIBRATION COMPLETE.";
+        renderStats(state.statusScreen.stats);
+        attachTermTriggers();
+        showScreen("screen-character-sheet");
+
+        // Replace buttons with just "proceed"
+        const actions = document.querySelector("#screen-character-sheet .screen-actions");
+        actions.innerHTML = `<button class="btn btn--primary" id="btn-sheet-proceed">Proceed to encounter</button>`;
+        document.getElementById("btn-sheet-proceed").addEventListener("click", () => generateEncounter());
+
+    } catch (err) {
+        console.error("PATH: Recalibration failed —", err);
+        generateEncounter();
+    }
+});
+
+
+/* ---- Gemini Call 4: Encounter ---- */
+
+async function generateEncounter() {
     const lowest = state.statusScreen.stats.find(s => s.isLowest)
         || state.statusScreen.stats[state.statusScreen.stats.length - 1];
 
-    document.getElementById("loading-2-label").textContent = "GENERATING FIRST ENCOUNTER...";
-    showScreen("screen-loading-2");
+    showScreen("screen-loading-4");
 
     try {
-        const raw  = await callGemini(buildPromptEncounter(state.confirmedPractice, lowest.name), 4096);
-        const data = parseJsonResponse(raw);
+        const raw  = await callGemini(promptEncounter(state.confirmedRole, lowest.name), 4096);
+        const data = parseJson(raw);
 
-        state.encounter.name           = data.name;
-        state.encounter.situation      = data.situation;
-        state.encounter.expertResponse = data.expertResponse;
+        state.encounter = data;
 
         document.getElementById("encounter-name").textContent       = data.name;
         document.getElementById("encounter-situation").textContent  = data.situation;
         document.getElementById("expert-response-text").textContent = data.expertResponse;
 
-        // Reset encounter UI state
         document.getElementById("expert-response-block").classList.add("hidden");
         document.getElementById("encounter-actions-primary").classList.remove("hidden");
         document.getElementById("input-encounter-response").value = "";
 
-        attachStaticTermTriggers();
+        attachTermTriggers();
         showScreen("screen-encounter");
     } catch (err) {
-        console.error("PATH: Encounter generation failed —", err);
-        // Non-fatal — skip to waitlist and still record session
-        writeSessionToFirestore();
+        console.error("PATH: Encounter failed —", err);
+        writeSession();
         showScreen("screen-waitlist");
     }
 }
 
 
-/* ------------------------------------------------------------
-   ENCOUNTER INTERACTIONS
-   ------------------------------------------------------------ */
+/* ---- Encounter interactions ---- */
 
 document.getElementById("btn-reveal-expert").addEventListener("click", () => {
     state.situationEngaged = true;
@@ -917,46 +1058,32 @@ document.getElementById("btn-reveal-expert").addEventListener("click", () => {
 });
 
 document.getElementById("btn-encounter-skip").addEventListener("click", () => {
-    writeSessionToFirestore();
-    showScreen("screen-waitlist");
+    writeSession(); showScreen("screen-waitlist");
 });
 
 document.getElementById("btn-encounter-continue").addEventListener("click", () => {
-    writeSessionToFirestore();
-    showScreen("screen-waitlist");
+    writeSession(); showScreen("screen-waitlist");
 });
 
 
-/* ------------------------------------------------------------
-   WAITLIST
-   ------------------------------------------------------------ */
+/* ---- Waitlist ---- */
 
 document.getElementById("btn-waitlist-submit").addEventListener("click", async () => {
     const email = document.getElementById("input-waitlist-email").value.trim();
-    if (!email || !email.includes("@")) {
-        alert("Please enter a valid email address.");
-        return;
-    }
+    if (!email || !email.includes("@")) { alert("Please enter a valid email address."); return; }
 
     state.waitlistSignup = true;
     state.waitlistEmail  = email;
+    await writeSession();
 
-    // Write full session
-    await writeSessionToFirestore();
-
-    // Also write to dedicated waitlist collection for easy querying
     if (db) {
         try {
             await db.collection("waitlist").add({
-                email:     email,
-                sessionId: state.sessionId,
-                path:      state.onboardingPath,
-                practice:  state.confirmedPractice,
+                email, sessionId: state.sessionId,
+                path: state.onboardingPath, role: state.confirmedRole,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
-        } catch (err) {
-            console.warn("PATH: Waitlist write failed —", err.message);
-        }
+        } catch (err) { console.warn("PATH: Waitlist write failed —", err.message); }
     }
 
     document.getElementById("waitlist-form").classList.add("hidden");
@@ -965,23 +1092,21 @@ document.getElementById("btn-waitlist-submit").addEventListener("click", async (
 
 document.getElementById("btn-waitlist-skip").addEventListener("click", () => {
     state.waitlistSignup = false;
-    writeSessionToFirestore();
+    writeSession();
     document.getElementById("waitlist-form").classList.add("hidden");
     document.getElementById("waitlist-confirmation").classList.remove("hidden");
-    document.getElementById("waitlist-confirmation-text").textContent =
-        "YOUR CHARACTER SHEET HAS BEEN RECORDED.";
+    document.getElementById("waitlist-confirmation-text").textContent = "TRANSMISSION COMPLETE. YOUR PATH IS RECORDED.";
 });
 
 
-/* ------------------------------------------------------------
-   INITIALISATION
-   ------------------------------------------------------------ */
+/* ---- Init ---- */
 
 function init() {
-    state.sessionId = generateSessionId();
+    state.sessionId = genSessionId();
     initFirebase();
-    updateReimagineUI();
-    attachStaticTermTriggers();
+    updateReimagineProgress();
+    attachTermTriggers();
+    runBoot();
 }
 
 init();

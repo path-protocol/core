@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Path</title>
+    <title>PATH</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
@@ -12,16 +12,30 @@
 <body>
 
     <!-- ============================================================
+         SCREEN: BOOT SEQUENCE (auto-advances, shows once)
+    ============================================================ -->
+    <section id="screen-boot" class="screen active">
+        <div class="screen-inner screen-inner--centered">
+            <div class="boot-terminal" id="boot-terminal"></div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
          SCREEN: LANDING
     ============================================================ -->
-    <section id="screen-landing" class="screen active">
+    <section id="screen-landing" class="screen">
         <div class="screen-inner screen-inner--centered">
-            <div class="landing-tag">SYSTEM INITIALISED</div>
+            <div class="landing-tag">SIGNAL ACQUIRED</div>
             <div class="landing-wordmark">PATH</div>
             <p class="landing-statement">
-                Reveals where you actually are in your career — and what it takes to reach the level above you.
+                You found PATH. Or PATH found you.<br>Either way — you're here now.
             </p>
-            <button class="btn btn--primary btn--large" id="btn-begin">[ BEGIN ]</button>
+            <p class="landing-sub">
+                B.L.O.C.K. filed you under an approved category.<br>
+                Let's find out what you actually are.
+            </p>
+            <button class="btn btn--primary btn--large" id="btn-begin">[ INITIALISE ]</button>
         </div>
     </section>
 
@@ -31,18 +45,18 @@
     ============================================================ -->
     <section id="screen-path-select" class="screen">
         <div class="screen-inner screen-inner--centered">
-            <div class="screen-sys-label">SELECT PATH</div>
-            <p class="screen-prompt">Do you have professional work experience, or are you just starting out?</p>
+            <div class="screen-sys-label">SUBJECT CLASSIFICATION // PENDING</div>
+            <p class="screen-prompt">Has your career already started, or are you still finding the signal?</p>
             <div class="choice-stack">
                 <button class="btn btn--choice" id="btn-cv-path">
-                    <span class="choice-tag">PATH A</span>
+                    <span class="choice-tag">TRACK A</span>
                     <span class="choice-label">I have work experience</span>
-                    <span class="choice-sub">Paste your CV. We identify your specific practice and build your character sheet.</span>
+                    <span class="choice-sub">Upload your career record. PATH maps what B.L.O.C.K. never told you.</span>
                 </button>
                 <button class="btn btn--choice" id="btn-reimagine-path">
-                    <span class="choice-tag">PATH B</span>
+                    <span class="choice-tag">TRACK B</span>
                     <span class="choice-label">I'm just starting out</span>
-                    <span class="choice-sub">Answer five questions. We surface what you already know and where it points.</span>
+                    <span class="choice-sub">No record required. PATH reads what you've already built without knowing it.</span>
                 </button>
             </div>
         </div>
@@ -50,17 +64,18 @@
 
 
     <!-- ============================================================
-         SCREEN: CV PASTE (CV path — before API key)
+         SCREEN: CV PASTE (Track A)
     ============================================================ -->
     <section id="screen-cv-paste" class="screen">
         <div class="screen-inner screen-inner--narrow">
-            <div class="screen-sys-label">INPUT // CV</div>
-            <h2 class="screen-heading">Your CV</h2>
+            <div class="screen-sys-label">INPUT // CAREER RECORD</div>
+            <h2 class="screen-heading">Your career record</h2>
             <p class="screen-body">
-                Paste your full CV — not a shortened version. We use this to understand what you actually do, not just your job title.
+                Paste your full CV — not a shortened version.
+                PATH reads what you actually did, not what your title suggested you did.
             </p>
             <div class="field-group">
-                <label class="field-label" for="input-cv">CV TEXT</label>
+                <label class="field-label" for="input-cv">CAREER RECORD</label>
                 <textarea
                     id="input-cv"
                     class="field-input field-input--tall"
@@ -68,57 +83,50 @@
                     spellcheck="false"
                 ></textarea>
             </div>
-            <button class="btn btn--primary" id="btn-cv-next">Continue</button>
+            <button class="btn btn--primary" id="btn-cv-next">Transmit record</button>
         </div>
     </section>
 
 
     <!-- ============================================================
-         SCREEN: RE-IMAGINE QUESTIONS (Re-imagine path — before API key)
-         One question shown at a time.
+         SCREEN: REIMAGINE QUESTIONS (Track B — 3 questions)
     ============================================================ -->
     <section id="screen-reimagine" class="screen">
         <div class="screen-inner screen-inner--narrow">
 
-            <div class="reimagine-progress">
-                <span class="screen-sys-label">QUESTION</span>
-                <span class="reimagine-progress__current" id="reimagine-q-num">1</span>
-                <span class="reimagine-progress__sep">/</span>
-                <span class="reimagine-progress__total">5</span>
+            <div class="reimagine-header">
+                <div class="screen-sys-label">SIGNAL MAPPING // TRACK B</div>
+                <div class="reimagine-progress-bar">
+                    <div class="reimagine-progress-bar__fill" id="reimagine-bar-fill"></div>
+                </div>
+                <div class="reimagine-progress-label">
+                    <span id="reimagine-q-num">1</span>
+                    <span class="reimagine-progress-label__sep"> of </span>
+                    <span>3</span>
+                </div>
             </div>
 
             <div class="reimagine-question active" id="reimagine-q1">
-                <p class="screen-prompt">What do you spend time on that you didn't have to?</p>
+                <p class="screen-prompt">What's something you figured out on your own that most people around you still haven't?</p>
+                <p class="screen-body">A skill, a way of thinking, a system you built. Anything you know that didn't come from a classroom.</p>
                 <div class="field-group">
-                    <textarea id="input-reimagine-1" class="field-input field-input--medium" placeholder="Take your time with this one..." spellcheck="true"></textarea>
+                    <textarea id="input-reimagine-1" class="field-input field-input--medium" placeholder="Take your time — there's no wrong answer here..." spellcheck="true"></textarea>
                 </div>
             </div>
 
             <div class="reimagine-question" id="reimagine-q2">
-                <p class="screen-prompt">What have you organised, built, managed, or figured out — for yourself, for others, for fun?</p>
+                <p class="screen-prompt">Think of a time someone came to you for help — not officially, just because they knew you'd know. What was it for?</p>
+                <p class="screen-body">Could be a friend, a family member, a classmate. The subject doesn't matter — what matters is why they came to you specifically.</p>
                 <div class="field-group">
-                    <textarea id="input-reimagine-2" class="field-input field-input--medium" placeholder="Anything counts here..." spellcheck="true"></textarea>
+                    <textarea id="input-reimagine-2" class="field-input field-input--medium" placeholder="What do people instinctively trust you on?" spellcheck="true"></textarea>
                 </div>
             </div>
 
             <div class="reimagine-question" id="reimagine-q3">
-                <p class="screen-prompt">What do people come to you for, even informally?</p>
+                <p class="screen-prompt">If you had one hour to teach something to a stranger — no preparation, no slides — what would you teach?</p>
+                <p class="screen-body">Not what you think you should teach. What you'd actually choose if it were completely up to you.</p>
                 <div class="field-group">
-                    <textarea id="input-reimagine-3" class="field-input field-input--medium" placeholder="Friends, family, peers..." spellcheck="true"></textarea>
-                </div>
-            </div>
-
-            <div class="reimagine-question" id="reimagine-q4">
-                <p class="screen-prompt">What have you taught yourself that most people your age haven't?</p>
-                <div class="field-group">
-                    <textarea id="input-reimagine-4" class="field-input field-input--medium" placeholder="Skills, knowledge, ways of thinking..." spellcheck="true"></textarea>
-                </div>
-            </div>
-
-            <div class="reimagine-question" id="reimagine-q5">
-                <p class="screen-prompt">What would you do with your time if nothing was graded and no one was watching?</p>
-                <div class="field-group">
-                    <textarea id="input-reimagine-5" class="field-input field-input--medium" placeholder="Be honest with yourself here..." spellcheck="true"></textarea>
+                    <textarea id="input-reimagine-3" class="field-input field-input--medium" placeholder="What could you teach right now, without preparing?" spellcheck="true"></textarea>
                 </div>
             </div>
 
@@ -132,22 +140,34 @@
 
 
     <!-- ============================================================
-         SCREEN: API KEY (shown after input is collected)
+         SCREEN: NEURAL LINK INTERSTITIAL
+         Lore bridge between input collection and API key ask.
+    ============================================================ -->
+    <section id="screen-neural-link" class="screen">
+        <div class="screen-inner screen-inner--centered">
+            <div class="boot-terminal" id="neural-terminal"></div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN: API KEY
     ============================================================ -->
     <section id="screen-api-key" class="screen">
         <div class="screen-inner screen-inner--narrow">
-            <div class="screen-sys-label">SYSTEM // AUTH</div>
-            <h2 class="screen-heading">Connect your AI key</h2>
+            <div class="screen-sys-label">NEURAL LINK // AUTHENTICATION</div>
+            <h2 class="screen-heading">Establish cognitive link</h2>
             <p class="screen-body">
-                Path uses the Gemini API to analyse your experience and generate your character sheet.
-                Your key stays in this browser session only — never sent to a server.
+                Deep analysis requires an external cognitive processor.
+                PATH runs on unsecured channels — your key never touches B.L.O.C.K. infrastructure.
             </p>
             <p class="screen-body">
-                Get a free key from
+                Acquire a free key from
                 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="link">Google AI Studio</a>.
+                Paste it below to initiate deep scan.
             </p>
             <div class="field-group">
-                <label class="field-label" for="input-api-key">GEMINI API KEY</label>
+                <label class="field-label" for="input-api-key">COGNITIVE PROCESSOR KEY</label>
                 <input
                     type="password"
                     id="input-api-key"
@@ -158,82 +178,89 @@
                 />
                 <p class="field-hint" id="api-key-hint"></p>
             </div>
-            <button class="btn btn--primary" id="btn-validate-key">Validate &amp; Analyse</button>
+            <button class="btn btn--primary" id="btn-validate-key">[ LINK &amp; SCAN ]</button>
             <div class="inline-loader hidden" id="api-key-loader">
                 <span class="loader-dot"></span>
                 <span class="loader-dot"></span>
                 <span class="loader-dot"></span>
-                <span class="loader-text">Validating key...</span>
+                <span class="loader-text">ESTABLISHING LINK...</span>
             </div>
         </div>
     </section>
 
 
     <!-- ============================================================
-         SCREEN: LOADING — Gemini Call 1
+         SCREEN: LOADING — Gemini Call 1 (role cards)
     ============================================================ -->
     <section id="screen-loading-1" class="screen">
         <div class="screen-inner screen-inner--centered">
             <div class="loading-block">
                 <div class="loading-bar"><div class="loading-bar__fill"></div></div>
-                <p class="loading-label" id="loading-1-label">READING CAREER HISTORY...</p>
+                <p class="loading-label" id="loading-1-label">SCANNING CAREER RECORD...</p>
             </div>
         </div>
     </section>
 
 
     <!-- ============================================================
-         SCREEN: PRACTICE CARDS ROUND 1
+         SCREEN: ROLE CARDS ROUND 1 — select any number
     ============================================================ -->
     <section id="screen-cards-1" class="screen">
         <div class="screen-inner screen-inner--wide">
-            <div class="screen-sys-label">PRACTICE IDENTIFICATION // ROUND 01</div>
-            <h2 class="screen-heading">Which of these feels closest to your actual work?</h2>
-            <p class="screen-body">Select all that apply. We'll narrow it down from there.</p>
+            <div class="screen-sys-label">ROLE MAPPING // ROUND 01 OF 03</div>
+            <h2 class="screen-heading">Which of these resonates?</h2>
+            <p class="screen-body">Select every role that could be yours. Don't filter yourself yet.</p>
             <div class="card-grid" id="card-grid-1"></div>
-            <div class="card-context-field">
-                <label class="field-label" for="input-card-context-1">ANYTHING ELSE? (optional)</label>
-                <textarea
-                    id="input-card-context-1"
-                    class="field-input field-input--context"
-                    placeholder="If none of these quite capture your role, add anything that better defines what you actually do..."
-                    spellcheck="true"
-                ></textarea>
-            </div>
             <div class="screen-actions">
-                <button class="btn btn--primary" id="btn-cards-1-confirm">Confirm selection</button>
+                <button class="btn btn--primary" id="btn-cards-1-confirm">Continue</button>
             </div>
         </div>
     </section>
 
 
     <!-- ============================================================
-         SCREEN: PRACTICE CARDS ROUND 2
+         SCREEN: ROLE CARDS ROUND 2 — select up to 2
     ============================================================ -->
     <section id="screen-cards-2" class="screen">
         <div class="screen-inner screen-inner--wide">
-            <div class="screen-sys-label">PRACTICE IDENTIFICATION // ROUND 02</div>
-            <h2 class="screen-heading">Let's get more precise.</h2>
-            <p class="screen-body">Select the one that fits best.</p>
+            <div class="screen-sys-label">ROLE MAPPING // ROUND 02 OF 03</div>
+            <h2 class="screen-heading">Narrowing the signal.</h2>
+            <p class="screen-body">Select up to two. PATH is isolating your frequency.</p>
             <div class="card-grid" id="card-grid-2"></div>
-            <div class="card-context-field">
-                <label class="field-label" for="input-card-context-2">ANYTHING ELSE? (optional)</label>
-                <textarea
-                    id="input-card-context-2"
-                    class="field-input field-input--context"
-                    placeholder="If none of these quite capture your role, add anything that better defines what you actually do..."
-                    spellcheck="true"
-                ></textarea>
-            </div>
             <div class="screen-actions">
-                <button class="btn btn--primary" id="btn-cards-2-confirm">This is it</button>
+                <button class="btn btn--primary" id="btn-cards-2-confirm">Continue</button>
             </div>
         </div>
     </section>
 
 
     <!-- ============================================================
-         SCREEN: LOADING — Gemini Call 2
+         SCREEN: ROLE CARDS ROUND 3 — select exactly 1, free text
+    ============================================================ -->
+    <section id="screen-cards-3" class="screen">
+        <div class="screen-inner screen-inner--wide">
+            <div class="screen-sys-label">ROLE MAPPING // ROUND 03 OF 03</div>
+            <h2 class="screen-heading">Lock your frequency.</h2>
+            <p class="screen-body">Select one. This is what PATH will map.</p>
+            <div class="card-grid" id="card-grid-3"></div>
+            <div class="card-context-field">
+                <label class="field-label" for="input-card-context-3">ANYTHING PATH MISSED? (optional)</label>
+                <textarea
+                    id="input-card-context-3"
+                    class="field-input field-input--context"
+                    placeholder="If none of these fully captures your role, describe what's missing. Name a specific job title if you know it."
+                    spellcheck="true"
+                ></textarea>
+            </div>
+            <div class="screen-actions">
+                <button class="btn btn--primary" id="btn-cards-3-confirm">[ LOCK FREQUENCY ]</button>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN: LOADING — Gemini Call 2 (character sheet)
     ============================================================ -->
     <section id="screen-loading-2" class="screen">
         <div class="screen-inner screen-inner--centered">
@@ -251,17 +278,16 @@
     <section id="screen-character-sheet" class="screen">
         <div class="screen-inner screen-inner--narrow">
 
-            <!-- Origin Story: Re-imagine path only -->
             <div class="origin-story hidden" id="origin-story-block">
                 <div class="origin-story__label">
-                    <span class="term" data-term="origin-story">ORIGIN STORY</span>
+                    <span class="term" data-term="origin-story">ORIGIN SIGNAL</span>
                 </div>
                 <p class="origin-story__text" id="origin-story-text"></p>
             </div>
 
             <div class="sheet-header">
                 <div class="sheet-sys-row">
-                    <span class="screen-sys-label">CHARACTER SHEET</span>
+                    <span class="screen-sys-label">CHARACTER SHEET // DRAFT</span>
                     <span class="sheet-practice" id="sheet-practice-name"></span>
                 </div>
                 <div class="sheet-path-name" id="sheet-path-name"></div>
@@ -269,11 +295,11 @@
 
             <div class="stat-list" id="stat-list"></div>
 
-            <p class="sheet-footer-note" id="sheet-footer-note">THESE REFLECT WHERE YOU ARE NOW. THEY CHANGE AS YOU PLAY.</p>
+            <p class="sheet-footer-note" id="sheet-footer-note">INITIAL SCAN COMPLETE. CALIBRATION PENDING.</p>
 
             <div class="screen-actions">
-                <button class="btn btn--primary" id="btn-sheet-confirm">Confirmed — this is accurate</button>
-                <button class="btn btn--ghost" id="btn-sheet-flag">Some of this is off</button>
+                <button class="btn btn--primary" id="btn-sheet-confirm">This is accurate</button>
+                <button class="btn btn--ghost" id="btn-sheet-flag">Some of this is off — recalibrate</button>
             </div>
 
         </div>
@@ -285,22 +311,79 @@
     ============================================================ -->
     <section id="screen-flag" class="screen">
         <div class="screen-inner screen-inner--narrow">
-            <div class="screen-sys-label">FLAG // STATS</div>
-            <h2 class="screen-heading">Which stats feel off?</h2>
+            <div class="screen-sys-label">RECALIBRATION // FLAGGING</div>
+            <h2 class="screen-heading">Which stats are off?</h2>
             <p class="screen-body">
-                Select the ones that don't reflect your experience accurately.
-                Your feedback is recorded.
+                Mark what doesn't match. PATH will run a deeper probe on each flagged stat.
             </p>
             <div class="flag-list" id="flag-list"></div>
             <div class="screen-actions">
-                <button class="btn btn--primary" id="btn-flag-confirm">Continue</button>
+                <button class="btn btn--primary" id="btn-flag-confirm">Run deep probe</button>
             </div>
         </div>
     </section>
 
 
     <!-- ============================================================
-         SCREEN: FIRST ENCOUNTER PREVIEW
+         SCREEN: PROBE ROUND 1
+    ============================================================ -->
+    <section id="screen-probe-1" class="screen">
+        <div class="screen-inner screen-inner--narrow">
+            <div class="screen-sys-label">DEEP PROBE // ROUND 01 OF 02</div>
+            <h2 class="screen-heading">Calibration questions.</h2>
+            <p class="screen-body">Answer honestly. PATH is recalibrating your stats based on your actual experience.</p>
+            <div class="probe-questions" id="probe-questions-1"></div>
+            <div class="screen-actions">
+                <button class="btn btn--primary" id="btn-probe-1-confirm">Continue</button>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN: PROBE ROUND 2
+    ============================================================ -->
+    <section id="screen-probe-2" class="screen">
+        <div class="screen-inner screen-inner--narrow">
+            <div class="screen-sys-label">DEEP PROBE // ROUND 02 OF 02</div>
+            <h2 class="screen-heading">Final calibration.</h2>
+            <p class="screen-body">Last set. PATH is almost done recalibrating.</p>
+            <div class="probe-questions" id="probe-questions-2"></div>
+            <div class="screen-actions">
+                <button class="btn btn--primary" id="btn-probe-2-confirm">Recalibrate sheet</button>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN: LOADING — Gemini Call 3 (recalibration)
+    ============================================================ -->
+    <section id="screen-loading-3" class="screen">
+        <div class="screen-inner screen-inner--centered">
+            <div class="loading-block">
+                <div class="loading-bar"><div class="loading-bar__fill"></div></div>
+                <p class="loading-label">RECALIBRATING CHARACTER SHEET...</p>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN: LOADING — Gemini Call 4 (encounter)
+    ============================================================ -->
+    <section id="screen-loading-4" class="screen">
+        <div class="screen-inner screen-inner--centered">
+            <div class="loading-block">
+                <div class="loading-bar"><div class="loading-bar__fill"></div></div>
+                <p class="loading-label">GENERATING FIRST ENCOUNTER...</p>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ============================================================
+         SCREEN: ENCOUNTER PREVIEW
     ============================================================ -->
     <section id="screen-encounter" class="screen">
         <div class="screen-inner screen-inner--narrow">
@@ -337,7 +420,7 @@
                 </div>
             </div>
 
-            <p class="encounter-footer">This is what your Path looks like. Your full journey is being built.</p>
+            <p class="encounter-footer">B.L.O.C.K. never got this far with you.</p>
 
         </div>
     </section>
@@ -348,11 +431,11 @@
     ============================================================ -->
     <section id="screen-waitlist" class="screen">
         <div class="screen-inner screen-inner--centered">
-            <div class="screen-sys-label">SESSION COMPLETE</div>
-            <div class="waitlist-heading">Your Path is being built.</div>
+            <div class="screen-sys-label">SESSION COMPLETE // TRANSMISSION SECURED</div>
+            <div class="waitlist-heading">Your Path is mapped.</div>
             <p class="screen-body screen-body--centered">
-                The full experience — Encounters, Known Opponents, Abilities, Rank progression — is in development.
-                Leave your email and you'll be first in when it opens.
+                The full system — Encounters, Known Opponents, Rank progression, Ability unlock — is coming.
+                Leave your signal address and PATH will find you when it's ready.
             </p>
 
             <div id="waitlist-form">
@@ -364,14 +447,14 @@
                         placeholder="your@email.com"
                         autocomplete="email"
                     />
-                    <button class="btn btn--primary" id="btn-waitlist-submit">Join waitlist</button>
+                    <button class="btn btn--primary" id="btn-waitlist-submit">[ REGISTER SIGNAL ]</button>
                 </div>
-                <button class="btn btn--ghost btn--small" id="btn-waitlist-skip">No thanks</button>
+                <button class="btn btn--ghost btn--small" id="btn-waitlist-skip">Decline</button>
             </div>
 
             <div class="waitlist-confirmation hidden" id="waitlist-confirmation">
                 <p class="waitlist-confirmation__text" id="waitlist-confirmation-text">
-                    YOU'RE ON THE LIST. WE'LL BE IN TOUCH.
+                    SIGNAL REGISTERED. PATH WILL FIND YOU.
                 </p>
             </div>
         </div>
@@ -389,11 +472,8 @@
         </div>
     </div>
 
-
-    <!-- Firebase SDKs (compat build — no bundler required) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
     <script src="script.js"></script>
 </body>
 </html>
